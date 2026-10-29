@@ -156,8 +156,8 @@ def chat():
             session['draft_text'] = None
             session['pptx_path'] = None
             mode = 'await_draft'
-        # If user typed a question/instruction alongside the file — go conversational
-        if typed and mode == 'await_draft':
+        # Always go conversational when files are uploaded — analyze first, build only after confirm
+        if mode == 'await_draft':
             session['pending_draft'] = user_msg
             session['mode'] = 'await_confirm'
             return _handle_with_question(user_msg, typed)
@@ -522,6 +522,37 @@ def _format_req_summary(req: dict) -> str:
     return '\n'.join(lines) if lines else '_لا متطلبات محددة._'
 
 
+def _generate_targeted_questions(tender_text: str) -> str:
+    """Ask Gemini to generate 3-5 targeted questions the user must answer before building."""
+    try:
+        from google import genai
+        from google.genai import types as _types
+        client = genai.Client(api_key=session['api_key'])
+        prompt = (
+            'أنت مساعد تحليل مناقصات حكومية عُمانية.\n'
+            'اقرأ هذه المناقصة وحدّد 3 إلى 5 أسئلة يجب على صاحب العرض الإجابة عليها '
+            'قبل كتابة العرض، بناءً على متطلبات خاصة بهذه المناقصة تحديداً.\n'
+            'ركّز على معلومات لا يمكن للنظام افتراضها أو اختراعها مثل:\n'
+            '- أسماء المدربين/المدربات المتاحين (خاصة إن اشترطت المناقصة إناثاً)\n'
+            '- الشهادات والمؤهلات المحددة المطلوبة\n'
+            '- أي اشتراطات خاصة بالجنس أو الخبرة أو الجنسية\n'
+            '- تفاصيل المتحدث في جلسة الحوار إن وُجدت\n'
+            '- أي قيود أو شروط خاصة بهذه الجهة\n\n'
+            'اكتب الأسئلة بصيغة مباشرة وواضحة باللغة العربية، واحدة في كل سطر.\n\n'
+            f'=== المناقصة ===\n{tender_text[:6000]}'
+        )
+        resp = client.models.generate_content(
+            model='gemini-3.5-flash-lite',
+            contents=prompt,
+            config=_types.GenerateContentConfig(temperature=0.3, max_output_tokens=500)
+        )
+        questions = resp.text.strip()
+        return f'❓ **أسئلة يجب الإجابة عليها قبل بناء العرض:**\n\n{questions}'
+    except Exception as e:
+        logger.warning(f'Targeted questions failed: {e}')
+        return '❓ **يرجى تزويدنا بأي معلومات إضافية عن فريق التنفيذ أو المتطلبات الخاصة قبل البدء.**'
+
+
 def _answer_about_tender(question: str):
     """Answer a question about the pending tender, then ask for confirmation."""
     tender_text = session.get('pending_draft', '')
@@ -555,7 +586,7 @@ def _answer_about_tender(question: str):
 
 
 def _handle_with_question(full_content: str, typed_question: str):
-    """Extract requirements, answer the user's question, ask for confirmation."""
+    """Extract requirements, generate targeted questions, optionally answer user's question."""
     from extractor import extract_requirements
     req = {}
     try:
@@ -565,34 +596,37 @@ def _handle_with_question(full_content: str, typed_question: str):
         logger.warning(f'Pre-extract failed: {e}')
 
     summary = _format_req_summary(req)
+    targeted_qs = _generate_targeted_questions(full_content)
 
-    try:
-        from google import genai
-        from google.genai import types as _types
-        client = genai.Client(api_key=session['api_key'])
-        prompt = (
-            'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
-            'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات.\n\n'
-            f'=== الوثيقة ===\n{full_content[:8000]}\n\n'
-            f'=== سؤال المستخدم ===\n{typed_question}'
-        )
-        resp = client.models.generate_content(
-            model='gemini-3.5-flash-lite',
-            contents=prompt,
-            config=_types.GenerateContentConfig(temperature=0.2, max_output_tokens=800)
-        )
-        answer = resp.text.strip()
-    except Exception as e:
-        logger.warning(f'Q&A failed: {e}')
-        answer = '📋 تم استلام ملفك وسؤالك.'
+    answer_block = ''
+    if typed_question:
+        try:
+            from google import genai
+            from google.genai import types as _types
+            client = genai.Client(api_key=session['api_key'])
+            prompt = (
+                'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
+                'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات.\n\n'
+                f'=== الوثيقة ===\n{full_content[:8000]}\n\n'
+                f'=== سؤال المستخدم ===\n{typed_question}'
+            )
+            resp = client.models.generate_content(
+                model='gemini-3.5-flash-lite',
+                contents=prompt,
+                config=_types.GenerateContentConfig(temperature=0.2, max_output_tokens=800)
+            )
+            answer_block = resp.text.strip() + '\n\n---\n\n'
+        except Exception as e:
+            logger.warning(f'Q&A failed: {e}')
 
     reply = (
-        f'{answer}\n\n'
-        f'---\n\n'
+        f'{answer_block}'
         f'📋 **ملخص متطلبات المناقصة:**\n{summary}\n\n'
+        f'---\n\n'
+        f'{targeted_qs}\n\n'
         f'---\n'
-        f'💬 هل أبدأ الآن بإنشاء العرض؟ اكتب **نعم** أو **يلا** للمتابعة، '
-        f'أو اطرح أي سؤال آخر.'
+        f'💬 أجب على الأسئلة أعلاه ثم اكتب **نعم** أو **يلا** لبدء الإنشاء، '
+        f'أو اطرح أي سؤال آخر عن المناقصة.'
     )
     return jsonify({'reply': reply, 'mode': 'await_confirm'})
 

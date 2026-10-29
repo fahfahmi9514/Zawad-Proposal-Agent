@@ -1258,6 +1258,83 @@ def _slide_innovation(prs, data, client_logo):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# SLIDE 08: LEARNING MEASUREMENT TOOLS
+# ═══════════════════════════════════════════════════════════════════
+
+def _slide_learning_measurement(prs, data, client_logo):
+    slide = _blank_slide(prs)
+    _rect(slide, 0, 0, W, H, LGRAY)
+    tf3 = _header(slide, 'أدوات وأساليب قياس التعلم', '08', client_logo)
+    _divider(slide)
+    _para(tf3, 'منهجية القياس والتقييم وفق نموذج كيركباتريك', 15, color=MINT, align=PP_ALIGN.RIGHT)
+
+    lm = data.get('sections', {}).get('learning_measurement', {})
+
+    levels = [
+        ('01', 'التقييم القبلي', lm.get('pre_assessment',
+            'تقييم قبلي إلكتروني يقيس المستوى المعرفي الأساسي لكل مشارك قبل انطلاق البرنامج، '
+            'ويُستخدم لتخصيص المحتوى وفق احتياجات الفئة.'), NAVY),
+        ('02', 'التقييم البعدي', lm.get('post_assessment',
+            'تقييم بعدي في نهاية كل وحدة تعليمية يقيس الأثر الفوري للتعلم ومدى تحقق الأهداف '
+            'على مستويَي المعرفة والمهارة وفق نموذج كيركباتريك (المستوى 1 و2).'), TEAL),
+        ('03', 'متابعة الأثر البعدية', lm.get('impact_followup',
+            'جلسة متابعة بعد 60-90 يوماً من انتهاء البرنامج لقياس انتقال التعلم إلى بيئة العمل '
+            'الفعلية (المستوى 3 من كيركباتريك) مع تقرير ختامي بالنتائج والتوصيات.'), MINT),
+    ]
+
+    bw = (W - 1.5) / 3 - 0.3
+    bh = 7.5
+    for i, (num, title, text, col) in enumerate(levels):
+        bx = 0.5 + i * (bw + 0.45)
+        _rect(slide, bx, 3.1, bw, bh, WHITE, rounded=True, radius=0.12, border=MGRAY)
+        _rect(slide, bx, 3.1, bw, 0.5, col)
+        _oval(slide, bx + bw / 2 - 0.75, 3.4, 1.5, 1.5, col)
+        tx_n = _txbox(slide, bx + bw / 2 - 0.75, 3.4, 1.5, 1.5)
+        tf_n = tx_n.text_frame
+        tf_n.word_wrap = False
+        tf_n.vertical_anchor = MSO_ANCHOR.MIDDLE
+        _tf_clear(tf_n)
+        p = tf_n.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        r = p.add_run()
+        r.text = num
+        r.font.size = Pt(18)
+        r.font.bold = True
+        r.font.color.rgb = WHITE
+        r.font.name = 'Times New Roman'
+        tx2 = _txbox(slide, bx + 0.3, 5.2, bw - 0.6, 1.1)
+        tf2 = tx2.text_frame
+        tf2.word_wrap = True
+        _tf_clear(tf2)
+        _para(tf2, title, 15, bold=True, color=col, align=PP_ALIGN.RIGHT)
+        tx3 = _txbox(slide, bx + 0.3, 6.5, bw - 0.6, bh - 3.7)
+        tf3_t = tx3.text_frame
+        tf3_t.word_wrap = True
+        _tf_clear(tf3_t)
+        _para(tf3_t, text, 12, color=SLATE, align=PP_ALIGN.RIGHT)
+
+    tools = lm.get('tools', [
+        'استبيانات رضا يومية (Smile Sheet)',
+        'اختبارات معرفية قبلية وبعدية',
+        'بطاقة ملاحظة الأداء الميدانية',
+        'مقابلات المتابعة بعد 90 يوماً',
+    ])
+    tools_y = 3.1 + bh + 0.5
+    _rect(slide, 0.5, tools_y, W - 1.0, H - tools_y - 0.3, NAVY, rounded=True, radius=0.1)
+    tx4 = _txbox(slide, 1.0, tools_y + 0.3, W - 2.0, 1.0)
+    tf4 = tx4.text_frame
+    _tf_clear(tf4)
+    _para(tf4, 'أدوات القياس المستخدمة', 14, bold=True, color=MINT, align=PP_ALIGN.RIGHT)
+    tw = (W - 2.0) / max(len(tools), 1) - 0.3
+    for i, tool in enumerate(tools[:5]):
+        tx5 = _txbox(slide, 1.0 + i * (tw + 0.3), tools_y + 1.4, tw, 2.0)
+        tf5 = tx5.text_frame
+        tf5.word_wrap = True
+        _tf_clear(tf5)
+        _para(tf5, '◈ ' + tool, 12, color=WHITE, align=PP_ALIGN.RIGHT)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # SLIDE: FINANCIAL SUMMARY
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1432,7 +1509,7 @@ def _slide_financial_table(prs, data, client_logo):
 def _slide_governance(prs, data, client_logo):
     slide = _blank_slide(prs)
     _rect(slide, 0, 0, W, H, LGRAY)
-    tf3 = _header(slide, 'ضمان الجودة والحوكمة', '11', client_logo)
+    tf3 = _header(slide, 'ضمان الجودة والحوكمة', '09', client_logo)
     _divider(slide)
     _para(tf3, 'آليات الإشراف والمراجعة والاعتماد', 15, color=MINT, align=PP_ALIGN.RIGHT)
 
@@ -1983,12 +2060,13 @@ def build_pptx(data: dict, output_path: str):
 
     _slide_gantt(prs, data, client_logo)
     _slide_team_pages(prs, data, client_logo, lang=lang)
-    _slide_track_record(prs, data, client_logo)
-    _slide_innovation(prs, data, client_logo)
-    _slide_governance(prs, data, client_logo)
-    _slide_risk_matrix(prs, data, client_logo)
-    _slide_financial_summary(prs, data, client_logo)
-    _slide_financial_table(prs, data, client_logo)
+    _slide_learning_measurement(prs, data, client_logo)   # 08
+    _slide_governance(prs, data, client_logo)             # 09
+    _slide_risk_matrix(prs, data, client_logo)            # 09
+    _slide_innovation(prs, data, client_logo)             # 10
+    _slide_track_record(prs, data, client_logo)           # 11
+    _slide_financial_summary(prs, data, client_logo)      # 12
+    _slide_financial_table(prs, data, client_logo)        # 12
     _slide_commitments_page(prs, data, client_logo)
     _slide_declarations(prs, data, client_logo)
     _slide_closing(prs, data, client_logo)
