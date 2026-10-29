@@ -703,7 +703,7 @@ def _generate_new(draft_text: str):
 | الإجمالي | {total} ريال عماني |
 {req_line}{review_line}
 📁 **ملف العرض:** `completed/{pptx_path.name}`
-🖥️ **معاينة الشرائح:** [افتح المعاينة](http://localhost:5050/preview){drive_line}{warnings_block}
+📂 **[افتح في PowerPoint](http://localhost:5050/api/open_pptx)** ← اضغط لفتح الملف مباشرة{drive_line}{warnings_block}
 
 ---
 💬 هل تريد أي تعديلات؟ اكتبها بالعربية أو الإنجليزية وسأطبّقها فوراً.
@@ -770,7 +770,7 @@ def _patch_existing(correction: str):
 🗑️ الملف القديم حُذف تلقائياً
 📁 **الملف الجديد:** `completed/{new_pptx.name}`
 💰 **الإجمالي الجديد:** {total} ريال عماني{review_line}{drive_line}
-🖥️ **معاينة الشرائح:** [افتح المعاينة](http://localhost:5050/preview)
+📂 **[افتح في PowerPoint](http://localhost:5050/api/open_pptx)** ← اضغط لفتح الملف مباشرة
 
 هل تريد تعديلات أخرى؟"""
 
@@ -1068,6 +1068,21 @@ def preview():
     if not data:
         return '<html dir="rtl"><body style="font-family:Arial;padding:40px;background:#0A2647;color:#2EC4B6;text-align:center"><h2>لا يوجد عرض حالياً</h2><p style="color:white;margin-top:12px">أنشئ عرضاً أولاً من نافذة المحادثة</p></body></html>'
     return _build_preview_html(data)
+
+
+@app.route('/api/open_pptx')
+def open_pptx():
+    """Open the current PPTX file natively in PowerPoint (Windows only)."""
+    pptx_path = session.get('pptx_path')
+    if not pptx_path or not Path(pptx_path).exists():
+        return jsonify({'ok': False, 'error': 'لا يوجد ملف عرض حالياً.'}), 404
+    try:
+        import os
+        os.startfile(pptx_path)
+        return jsonify({'ok': True, 'path': pptx_path})
+    except Exception as exc:
+        logger.error(f'open_pptx error: {exc}')
+        return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
 # ── Entry point ──────────────────────────────────────────────────

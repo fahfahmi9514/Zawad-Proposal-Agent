@@ -1,0 +1,174 @@
+{
+  "_meta": {
+    "description": "Zawad team CV library — auto-injected into proposal generation context",
+    "last_updated": "2026-10-29",
+    "total_members": 8
+  },
+  "members": [
+    {
+      "id": "ali_eideed",
+      "name_ar": "م/ علي حسن عيديد",
+      "name_en": "Eng. Ali Hassan Eideed",
+      "gender": "male",
+      "nationality": "Omani",
+      "location": "Oman - Muscat",
+      "contact": {"email": "info@ettqan.com", "phone": "+968 72720004"},
+      "current_role": "CEO - إتقان العمران للاستشارات الهندسية | مدرب معتمد في إدارة المشاريع",
+      "years_experience": 24,
+      "specializations": ["إدارة المشاريع", "تدريب PMP", "تخطيط المشاريع", "إدارة المخاطر", "الأساليب الرشيقة Agile", "قيادة المشاريع الهندسية"],
+      "certifications": ["PMP", "PMI-ATP", "PMI-RMP", "PMI-SP", "PMI-ACP", "Six Sigma", "Primavera P6", "MOP", "PMI-AI", "P3O"],
+      "education": [
+        {"degree": "بكالوريوس هندسة مدنية", "institution": "جامعة صنعاء", "year": 2000},
+        {"degree": "ماجستير إدارة المشاريع (جاري)", "institution": "Mid Ocean University", "year": 2024}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["أكاديمية السلطان قابوس", "وزارة الداخلية", "وزارة الإسكان", "وزارة التنمية الاجتماعية", "شركة نماء", "العمانية للأبراج", "جامعة الشرقية"],
+      "bio_ar": "مهندس ومدرب معتمد بخبرة 24 عاماً في إدارة المشاريع بالمملكة العربية السعودية وسلطنة عُمان. حاصل على أكثر من 10 شهادات دولية من معهد إدارة المشاريع PMI. يتميز بتقديم برامج تدريبية معتمدة لمؤسسات حكومية وشركات كبرى في عُمان. الرئيس التنفيذي لشركة إتقان العمران للاستشارات الهندسية في مسقط.",
+      "suitable_for": ["تدريب إدارة المشاريع", "PMP certification", "تخطيط استراتيجي", "قيادة فرق العمل", "المشاريع الهندسية والبنية التحتية"]
+    },
+    {
+      "id": "yaseen_lawati",
+      "name_ar": "ياسين محمد رضا اللواتي",
+      "name_en": "Yaseen Mohammed Rida Al-Lawati",
+      "gender": "male",
+      "nationality": "Omani",
+      "location": "Oman - Muscat (P.O. Box 1392, Jibroo 114)",
+      "contact": {"email": "yalmunas@gmail.com", "phone": "+968 99212718"},
+      "current_role": "خبير إدارة مشاريع وتخطيط استراتيجي",
+      "years_experience": 37,
+      "specializations": ["إدارة المشاريع الكبرى", "التخطيط الاستراتيجي", "التدريب", "التدقيق", "المفاوضات", "إدارة سلامة العمليات", "التواصل المؤسسي"],
+      "certifications": [],
+      "education": [
+        {"degree": "بكالوريوس علوم في الهندسة الميكانيكية", "institution": "جامعة نورث كارولينا - شارلوت، الولايات المتحدة الأمريكية", "year": null}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": [],
+      "key_achievement": "المساهمة في إدارة مشروع جبال خف بموازنة تجاوزت مليار ريال عُماني",
+      "bio_ar": "خبير عُماني متمرس بخبرة 37 عاماً في إدارة المشاريع الكبرى والتخطيط الاستراتيجي. حاصل على درجة البكالوريوس في الهندسة الميكانيكية من الولايات المتحدة الأمريكية. أسهم في إدارة مشروع جبال خف العملاق بموازنة تجاوزت مليار ريال عُماني، مما يعكس كفاءته العالية في التعامل مع المشاريع الوطنية الكبرى.",
+      "suitable_for": ["إدارة المشاريع الكبرى", "التخطيط الاستراتيجي", "تدريب القيادات", "المشاريع الحكومية الكبرى", "سلامة العمليات"]
+    },
+    {
+      "id": "amina_hatmi",
+      "name_ar": "أمينة سعيد الحاتمي",
+      "name_en": "Amina Said Al Hatmi",
+      "gender": "female",
+      "nationality": "Omani",
+      "location": "Oman - Rustaq",
+      "contact": {"email": "aminaalhatmia5@gmail.com", "phone": "+968 98552765"},
+      "current_role": "منسقة أنشطة - مكتب تفاعل الطلاب والتوظيف | Global College of Engineering and Technology",
+      "years_experience": 6,
+      "specializations": ["إدارة الفعاليات والمؤتمرات", "السياحة والضيافة", "تنسيق البرامج التدريبية", "خدمة العملاء", "التنسيق المؤسسي"],
+      "certifications": ["Bachelor with Honours - Tourism & Hospitality Management (Oman Tourism College / TU Dublin)"],
+      "education": [
+        {"degree": "بكالوريوس بامتياز في إدارة السياحة والضيافة", "institution": "كلية عُمان للسياحة (OTC) - معتمدة من جامعة دبلن التكنولوجية", "year": 2021}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["وزارة السياحة - دائرة الاستثمار السياحي", "كلية عُمان للسياحة", "الكلية العالمية للهندسة والتكنولوجيا"],
+      "bio_ar": "كوادر عُمانية متميزة في مجال السياحة والضيافة وإدارة الفعاليات. حاصلة على بكالوريوس بامتياز من كلية عُمان للسياحة بالشراكة مع جامعة دبلن التكنولوجية. تتمتع بخبرة في تنسيق الفعاليات التعليمية والمؤتمرات وبرامج الضيافة. أجرت تدريبها العملي في وزارة السياحة العُمانية. تجيد اللغتين العربية والإنجليزية.",
+      "suitable_for": ["تدريب السياحة والضيافة", "إدارة الفعاليات", "برامج التوظيف والتطوير المهني", "خدمة العملاء", "المشاريع النسائية والشبابية"]
+    },
+    {
+      "id": "hamed_fahad",
+      "name_ar": "حامد فهد المعمري",
+      "name_en": "Hamed Fahad Almamari",
+      "gender": "male",
+      "nationality": "Omani",
+      "location": "Oman - Sur",
+      "contact": {"email": "hamadalmamari.2002@gmail.com", "phone": "+968 72002811"},
+      "current_role": "خريج حديث - بكالوريوس إدارة العمليات | سبق عمله مع زواد للتطوير",
+      "years_experience": 2,
+      "specializations": ["إدارة العمليات التدريبية", "اللوجستيات والتنسيق", "إدارة الميزانيات", "إدارة المستودعات", "تنسيق البرامج الميدانية"],
+      "certifications": [],
+      "education": [
+        {"degree": "بكالوريوس إدارة العمليات", "institution": "جامعة السلطان قابوس", "year": 2025}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["زواد للتطوير والاستشارات (برامج المراكز الصيفية)"],
+      "bio_ar": "خريج حديث من جامعة السلطان قابوس بتخصص إدارة العمليات. اكتسب خبرة عملية مع شركة زواد للتطوير والاستشارات في إدارة برنامج تدريبي من 6 أسابيع عبر عدة ولايات، مع إدارة الميزانية والتنسيق اللوجستي وإدارة المستودعات لأكثر من 120 صنفاً. يتمتع بمهارات التخطيط والتنظيم والقيادة.",
+      "suitable_for": ["التنسيق اللوجستي للبرامج التدريبية", "إدارة العمليات", "المشاريع الميدانية", "برامج الشباب والمراكز الصيفية"]
+    },
+    {
+      "id": "ali_fayyad",
+      "name_ar": "علي سالم فياض",
+      "name_en": "Ali Salem Fayyad",
+      "gender": "male",
+      "nationality": "Jordanian",
+      "location": "Amman, Jordan",
+      "contact": {"email": "alifayyad1986@gmail.com", "phone": "+962 79 858 8668"},
+      "current_role": "المدير التنفيذي - Partners Jordan | خبير الحوكمة والمشاركة المجتمعية والسياسات العامة",
+      "years_experience": 13,
+      "specializations": ["الحوكمة والإصلاح المؤسسي", "إدارة المالية العامة وشفافية الموازنة", "المشاركة البرلمانية", "التخطيط الاستراتيجي والتنموي", "بناء القدرات والتدريب", "اللامركزية والحوكمة المحلية", "المساءلة الاجتماعية والمشاركة المدنية"],
+      "certifications": ["TOT in Human Development", "Total Quality Management", "ISO 9001:2015", "Access to Information Law and Facilitation Skills"],
+      "education": [
+        {"degree": "بكالوريوس هندسة ميكانيكية", "institution": "جامعة العلوم والتكنولوجيا الأردنية", "year": 2013}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["OECD/EU", "NIMD", "International Budget Partnership", "Westminster Foundation for Democracy", "Friedrich Naumann Foundation", "الأكاديمية الملكية لعُمان (فبراير 2025)"],
+      "bio_ar": "خبير أردني متخصص في الحوكمة والإصلاح المؤسسي والسياسات العامة بخبرة تجاوزت 13 عاماً في الأردن ومنطقة الشرق الأوسط وشمال أفريقيا. يشغل حالياً منصب المدير التنفيذي لمنظمة Partners Jordan. قدّم تدريباً متخصصاً لمسؤولي الحكومة المحلية العُمانية في الأكاديمية الملكية لعُمان عام 2025. يتمتع بسجل حافل مع منظمات دولية بارزة مثل OECD وWorld Bank وUNDP والاتحاد الأوروبي.",
+      "suitable_for": ["حوكمة القطاع العام", "التخطيط الاستراتيجي", "الإصلاح المؤسسي", "إدارة الأداء والشفافية", "بناء القدرات القيادية", "برامج المشاركة المجتمعية"]
+    },
+    {
+      "id": "abdallah_mustafa",
+      "name_ar": "عبدالله أحمد مصطفى",
+      "name_en": "Abdallah Ahmad Mustafa",
+      "gender": "male",
+      "nationality": "Jordanian",
+      "location": "Amman, Jordan",
+      "contact": {"email": "naamnehabdullah@gmail.com", "phone": "+962798776184"},
+      "current_role": "مدير مشاريع الرصد والتقييم الميداني - Proximity International",
+      "years_experience": 7,
+      "specializations": ["الرصد والتقييم M&E", "تحليل البيانات وإدارتها", "البحث النوعي والكمي", "بناء القدرات والتدريب", "تطوير أدوات جمع البيانات", "تقييم الأثر البرامجي"],
+      "certifications": ["Google Data Analytics Professional Certificate", "PMD (Project Management and Development) - AMIDEAST", "Microsoft Power BI", "Advanced Excel", "MEAL DproEV3 Robot Advanced"],
+      "education": [
+        {"degree": "بكالوريوس هندسة التعدين", "institution": "جامعة الطفيلة التقنية", "year": 2017}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["USAID", "UNHCR", "UNICEF", "GIZ", "Danish Refugee Council", "Plan International", "Save the Children", "World Bank/GPSA", "Robotna"],
+      "bio_ar": "متخصص أردني في الرصد والتقييم وتحليل البيانات بخبرة تجاوزت 7 سنوات مع كبرى المنظمات الدولية. يدير مشاريع تقييم معقدة تموّلها USAID وUNHCR وYUNICEF وGIZ في سياقات إنسانية متعددة. يتمتع بمهارات متقدمة في تصميم أطر التقييم وتحليل البيانات وتقديم التقارير وبناء قدرات الفرق الميدانية.",
+      "suitable_for": ["قياس الأثر التدريبي", "تصميم أدوات التقييم", "برامج قياس الأداء والنتائج", "M&E للبرامج التنموية", "تحليل البيانات وتقديم التقارير"]
+    },
+    {
+      "id": "khaldun_ajarmeh",
+      "name_ar": "د. خلدون العجارمة",
+      "name_en": "Dr. Khaldun Al Ajarmeh",
+      "gender": "male",
+      "nationality": "Jordanian",
+      "location": "Amman, Jordan",
+      "contact": {"email": "Khaldunalajarmeh@gmail.com", "phone": "+962775326295"},
+      "current_role": "رئيس قسم العلاقات الدولية والاتفاقيات - وزارة العدل / الأردن",
+      "years_experience": 15,
+      "specializations": ["القانون الدولي والاتفاقيات الدولية", "الحوكمة والإصلاح المؤسسي", "الشؤون البرلمانية وتعزيز الرقابة", "إدارة الأزمات والتفاوض", "مكافحة الفساد والنزاهة", "التخطيط الاستراتيجي", "إدارة المنظمات الدولية"],
+      "certifications": ["دكتوراه إدارة - International American University (2022-2024)", "ماجستير قانون - جامعة علي كرة الإسلامية، الهند"],
+      "education": [
+        {"degree": "دكتوراه إدارة", "institution": "International American University", "year": 2024},
+        {"degree": "ماجستير قانون", "institution": "جامعة علي كرة الإسلامية - الهند", "year": 2008},
+        {"degree": "بكالوريوس قانون", "institution": "جامعة مؤتة - الأردن", "year": 1999}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["UNODC", "UNDP", "International Republican Institute", "وزارة العدل الأردنية", "مجلس النواب الأردني"],
+      "bio_ar": "دكتور متخصص في القانون والحوكمة والإصلاح المؤسسي بخبرة تجاوزت 15 عاماً. يشغل حالياً رئاسة قسم العلاقات الدولية والاتفاقيات في وزارة العدل الأردنية. خبير حكومي معتمد لدى UNODC في الاتفاقيات الدولية ومكافحة الفساد. يتمتع بخلفية قانونية صلبة وخبرة واسعة في التفاوض الدولي وإدارة الأزمات وتعزيز الشفافية.",
+      "suitable_for": ["الحوكمة ومكافحة الفساد", "الإصلاح المؤسسي والقانوني", "التميز المؤسسي", "برامج تعزيز النزاهة", "قيادة التغيير", "التخطيط الاستراتيجي للقطاع العام"]
+    },
+    {
+      "id": "amer_tubeishat",
+      "name_ar": "عامر طبيشات",
+      "name_en": "Amer Tubeishat, PMP®",
+      "gender": "male",
+      "nationality": "Jordanian",
+      "location": "Amman, Jordan",
+      "contact": {"email": "tubeishatamer@gmail.com", "phone": "+962 799 699 777"},
+      "current_role": "كبير مستشاري التحول الاستراتيجي وإصلاح القطاع العام | Hawaz Consulting / Riyadh",
+      "years_experience": 17,
+      "specializations": ["التحول الاستراتيجي للقطاع العام", "تصميم نماذج التشغيل المؤسسي", "إدارة الأداء وبناء مؤشرات KPI", "إنشاء مكاتب إدارة البرامج PMO/SMO", "استراتيجية سوق العمل", "الحوكمة والإصلاح المؤسسي", "بناء القدرات والتدريب"],
+      "certifications": ["PMP® - Project Management Institute"],
+      "education": [
+        {"degree": "ماجستير في البيئة (تربة، مياه وبيئة)", "institution": "جامعة العلوم والتكنولوجيا الأردنية", "year": 2003},
+        {"degree": "بكالوريوس العلوم الزراعية", "institution": "جامعة العلوم والتكنولوجيا الأردنية", "year": 2000}
+      ],
+      "languages": ["Arabic", "English"],
+      "training_clients": ["PwC / وزارة الموارد البشرية السعودية", "World Bank / وزارة التربية والتعليم الأردن", "UNOPS / الوزارات اليمنية", "Palladium Group / وزارة الصحة الأردن", "USAID / وزارة الداخلية الأردن"],
+      "bio_ar": "قائد تحول استراتيجي ومحترف معتمد PMP بخبرة تجاوزت 17 عاماً في إصلاح القطاع العام وتطويره عبر مؤسسات دولية بارزة مثل PwC وWorld Bank وUNOPS. قدّم استراتيجية سوق العمل السعودية التي فازت بجائزة CIDA لأفضل استراتيجية قطاعية عام 2023. متخصص في تصميم أطر إدارة الأداء وبناء KPIs وإنشاء مكاتب إدارة الاستراتيجية SMO. يتمتع بخبرة في بيئات الدول الهشة والمتأثرة بالنزاعات.",
+      "suitable_for": ["إدارة الأداء المؤسسي", "الحوكمة والتميز المؤسسي", "استراتيجية سوق العمل", "KPIs ولوحات الأداء", "برامج التحول المؤسسي", "قيادة التغيير", "التخطيط الاستراتيجي"]
+    }
+  ]
+}

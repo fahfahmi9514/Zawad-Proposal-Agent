@@ -308,6 +308,39 @@ def _get_rag(draft_text: str, api_key: str) -> str:
         return ''
 
 
+def _load_team_cvs() -> str:
+    """Load team CV library and return a compact summary for the prompt."""
+    try:
+        import os
+        cv_path = os.path.join(os.path.dirname(__file__), 'config', 'team_cvs.json')
+        with open(cv_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        members = data.get('members', [])
+        lines = ['=== مكتبة السير الذاتية لفريق زواد — اختر من هذه الأسماء لقسم الفريق ===']
+        for m in members:
+            name = m.get('name_ar', m.get('name_en', ''))
+            role = m.get('current_role', '')
+            years = m.get('years_experience', '')
+            specs = ' | '.join(m.get('specializations', [])[:4])
+            certs = ', '.join(m.get('certifications', [])[:4])
+            gender = m.get('gender', '')
+            bio = m.get('bio_ar', '')
+            suitable = ' | '.join(m.get('suitable_for', [])[:4])
+            lines.append(
+                f'\n[{name}] ({gender})\n'
+                f'  الدور: {role}\n'
+                f'  الخبرة: {years} سنة\n'
+                f'  التخصصات: {specs}\n'
+                f'  الشهادات: {certs or "—"}\n'
+                f'  مناسب لـ: {suitable}\n'
+                f'  نبذة: {bio[:300]}'
+            )
+        return '\n'.join(lines)
+    except Exception as exc:
+        logger.warning(f'CV library load skipped: {exc}')
+        return ''
+
+
 def generate_proposal(draft_text: str, api_key: str,
                       checklist: str = None) -> dict:
     """
@@ -316,6 +349,7 @@ def generate_proposal(draft_text: str, api_key: str,
     Returns the complete proposal dict ready for build_pptx().
     """
     rag = _get_rag(draft_text, api_key)
+    cv_library = _load_team_cvs()
 
     checklist_section = ''
     if checklist:
@@ -325,11 +359,15 @@ def generate_proposal(draft_text: str, api_key: str,
     if rag:
         rag_section = f'\n\n=== أمثلة من عروض زواد السابقة (للأسلوب فقط) ===\n{rag[:1000]}'
 
+    cv_section = ''
+    if cv_library:
+        cv_section = f'\n\n{cv_library[:4000]}\n\nتعليمات الفريق: اختر 2-4 أعضاء من المكتبة أعلاه حسب متطلبات المناقصة. إذا طلبت المناقصة مدربات إناث، أعطِ الأولوية للأعضاء ذوي gender: female. د. غسان المعمري يجب أن يكون دائماً الأول.'
+
     user_prompt = f"""الوثائق المرفقة (اقرأ كل وثيقة بالكامل وافهم دورها):
 ---
 {draft_text[:12000]}
 ---
-{checklist_section}{rag_section}
+{checklist_section}{rag_section}{cv_section}
 
 تعليمات:
 - إذا كانت هناك وثيقة مناقصة: استخرج منها متطلبات الجهة وأهدافها واكتب العرض ليغطيها بالكامل
@@ -338,6 +376,7 @@ def generate_proposal(draft_text: str, api_key: str,
 - اكتب workplan بعدد الأيام الصحيح المذكور في المناقصة
 - احسب التسعير بدقة من بطاقة الأسعار
 - غطِّ كل متطلب في قائمة المتطلبات أعلاه
+- استخدم السير الذاتية من مكتبة الفريق لملء قسم team بمعلومات حقيقية
 - أعد JSON فقط بدون أي نص خارجه"""
 
     client = genai.Client(api_key=api_key, http_options={'timeout': 120000})
