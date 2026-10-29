@@ -39,18 +39,24 @@ app = Flask(__name__, static_folder=str(BASE_DIR / 'chat_ui'), static_url_path='
 
 # ── Config helpers ───────────────────────────────────────────────
 
-def _load_api_key() -> str:
+def _load_config() -> dict:
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f).get('api_key', '')
+            return json.load(f)
     except Exception:
-        return ''
+        return {}
+
+
+def _load_api_key() -> str:
+    return _load_config().get('api_key', '')
 
 
 def _save_api_key(key: str):
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cfg = _load_config()
+    cfg['api_key'] = key
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump({'api_key': key}, f, indent=2)
+        json.dump(cfg, f, indent=2)
 
 
 # ── Session state (single user, in-memory) ───────────────────────
@@ -494,6 +500,11 @@ def _generate_new(draft_text: str):
         build_pptx(proposal_data, str(pptx_path))
         logger.info(f'PPTX saved: {pptx_path.name}')
 
+        # ── Step 3b: Upload to shared Drive (optional) ───────────────────────
+        from drive_upload import upload_proposal as _drive_upload
+        drive_link = _drive_upload(str(pptx_path), _load_config())
+        drive_line = f'\n☁️ **Google Drive:** [افتح الملف]({drive_link})' if drive_link else ''
+
         # ── Step 4: Write review checklist ───────────────────────────────────
         review_name = _write_review_file(proposal_data, req_data, safe)
         review_line = f'\n📋 **قائمة المراجعة:** `review_needed/{review_name}`' if review_name else ''
@@ -518,7 +529,7 @@ def _generate_new(draft_text: str):
 | الجهة | {proposal_data.get('client_name', '—')} |
 | الإجمالي | {total} ريال عماني |
 {req_line}{review_line}
-📁 **ملف العرض:** `completed/{pptx_path.name}`{warnings_block}
+📁 **ملف العرض:** `completed/{pptx_path.name}`{drive_line}{warnings_block}
 
 ---
 💬 هل تريد أي تعديلات؟ اكتبها بالعربية أو الإنجليزية وسأطبّقها فوراً.
@@ -559,6 +570,11 @@ def _patch_existing(correction: str):
         build_pptx(updated_data, str(new_pptx))   # build first — confirm it works
         logger.info(f'New PPTX: {new_pptx.name}')
 
+        # Upload updated file to Drive
+        from drive_upload import upload_proposal as _drive_upload
+        drive_link = _drive_upload(str(new_pptx), _load_config())
+        drive_line = f'\n☁️ **Google Drive:** [افتح الملف]({drive_link})' if drive_link else ''
+
         # Only delete old file after new one is confirmed written
         old_path = Path(session['pptx_path'])
         if old_path.exists() and old_path != new_pptx:
@@ -579,7 +595,7 @@ def _patch_existing(correction: str):
 
 🗑️ الملف القديم حُذف تلقائياً
 📁 **الملف الجديد:** `completed/{new_pptx.name}`
-💰 **الإجمالي الجديد:** {total} ريال عماني{review_line}
+💰 **الإجمالي الجديد:** {total} ريال عماني{review_line}{drive_line}
 
 هل تريد تعديلات أخرى؟"""
 
