@@ -33,6 +33,33 @@ ZAWAD_LOGO    = str(ASSETS / 'zawad_logo.png')
 RIYADAH_CARD  = str(ASSETS / 'riyadah_card.png')
 PARTNER_LOGOS = str(ASSETS / 'partner_logos.png')
 
+# ── Language labels ────────────────────────────────────────────────
+_LABELS = {
+    'ar': {
+        'team_title':     'فريق العمل والسير الذاتية',
+        'team_sub':       'الكفاءات العُمانية المتخصصة',
+        'team_page':      'الصفحة {n}',
+    },
+    'en': {
+        'team_title':     'Team & CVs',
+        'team_sub':       'Specialized Omani Competencies',
+        'team_page':      'Page {n}',
+    },
+}
+
+def _lbl(lang, key, **kwargs):
+    text = _LABELS.get(lang, _LABELS['ar']).get(key, _LABELS['ar'].get(key, key))
+    if kwargs:
+        text = text.format(**kwargs)
+    return text
+
+def _align_for(lang):
+    return PP_ALIGN.LEFT if lang == 'en' else PP_ALIGN.RIGHT
+
+def _is_rtl(lang):
+    return lang != 'en'
+
+
 PAST_PROJECTS = [
     ("البرنامج التنفيذي في الإدارة المحلية", "الأكاديمية السلطانية للإدارة", "83,000", "25", "داخل", "تدريب وكوتشن"),
     ("تطوير القيادات — الدفعة الخامسة", "الأكاديمية السلطانية للإدارة", "119,000", "25", "داخل", "تدريب، كوتشينج"),
@@ -998,30 +1025,34 @@ def _slide_workplan_day(prs, day_data, day_num, total_days, client_logo):
 # SLIDE: TEAM
 # ═══════════════════════════════════════════════════════════════════
 
-def _slide_team(prs, data, client_logo):
+def _slide_team_page(prs, members_page, page_num, total_pages, slide_num, client_logo, lang='ar'):
+    """Render one team slide for up to 3 members."""
     slide = _blank_slide(prs)
     _rect(slide, 0, 0, W, H, LGRAY)
-    tf3 = _header(slide, 'فريق العمل والسير الذاتية', '07', client_logo)
+
+    subtitle_suffix = ''
+    if total_pages > 1:
+        subtitle_suffix = '  —  ' + _lbl(lang, 'team_page', n=page_num)
+
+    tf3 = _header(slide, _lbl(lang, 'team_title'), str(slide_num).zfill(2), client_logo)
     _divider(slide)
-    _para(tf3, 'الكفاءات العُمانية المتخصصة', 15, color=MINT, align=PP_ALIGN.RIGHT)
+    _para(tf3, _lbl(lang, 'team_sub') + subtitle_suffix, 15,
+          color=MINT, align=_align_for(lang), rtl=_is_rtl(lang))
 
-    team = data.get('sections', {}).get('team', [])
-    if not team:
-        return
-
-    n = len(team)
+    n = len(members_page)
     cols = min(n, 3)
     bw = (W - 1.0) / cols - 0.3
     bh = H - 4.0
 
-    for i, member in enumerate(team[:cols]):
-        col = cols - 1 - i
+    for i, member in enumerate(members_page):
+        col = (cols - 1 - i) if lang != 'en' else i
         bx = 0.5 + col * (bw + 0.3)
 
         _rect(slide, bx, 3.0, bw, bh, WHITE, rounded=True, radius=0.12, border=MGRAY)
         _rect(slide, bx, 3.0, bw, 1.5, NAVY, rounded=True, radius=0.12)
         _rect(slide, bx, 3.8, bw, 0.7, NAVY)
 
+        # Avatar circle with initial
         _oval(slide, bx + bw / 2 - 1.2, 3.2, 2.4, 2.4, MINT)
         tx_init = _txbox(slide, bx + bw / 2 - 1.2, 3.2, 2.4, 2.4)
         tf_init = tx_init.text_frame
@@ -1031,33 +1062,96 @@ def _slide_team(prs, data, client_logo):
         p = tf_init.paragraphs[0]
         p.alignment = PP_ALIGN.CENTER
         r = p.add_run()
-        name = member.get('name', '')
+        name_key = 'name_en' if lang == 'en' else 'name'
+        name = member.get(name_key) or member.get('name', '')
         r.text = name[0] if name else '★'
         r.font.size = Pt(28)
         r.font.bold = True
         r.font.color.rgb = WHITE
         r.font.name = 'Times New Roman'
 
+        # Name
         tx2 = _txbox(slide, bx + 0.3, 6.0, bw - 0.6, 1.4)
         tf2 = tx2.text_frame
         tf2.word_wrap = True
         tf2.vertical_anchor = MSO_ANCHOR.MIDDLE
         _tf_clear(tf2)
-        _para(tf2, member.get('name', ''), 16, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
+        _para(tf2, name, 15, bold=True, color=NAVY,
+              align=_align_for(lang), rtl=_is_rtl(lang))
 
+        # Years badge (small, on avatar top-right)
+        years = str(member.get('years', '')).strip()
+        if years:
+            _rect(slide, bx + bw - 1.5, 3.05, 1.2, 0.65, TEAL, rounded=True, radius=0.08)
+            tx_yr = _txbox(slide, bx + bw - 1.5, 3.05, 1.2, 0.65)
+            tf_yr = tx_yr.text_frame
+            tf_yr.word_wrap = False
+            tf_yr.vertical_anchor = MSO_ANCHOR.MIDDLE
+            _tf_clear(tf_yr)
+            p_yr = tf_yr.paragraphs[0]
+            p_yr.alignment = PP_ALIGN.CENTER
+            r_yr = p_yr.add_run()
+            r_yr.text = years
+            r_yr.font.size = Pt(9)
+            r_yr.font.bold = True
+            r_yr.font.color.rgb = WHITE
+            r_yr.font.name = 'Times New Roman'
+
+        # Role badge
+        role_key = 'role_en' if lang == 'en' else 'role'
+        role = member.get(role_key) or member.get('role', '')
         _rect(slide, bx + 0.5, 7.4, bw - 1.0, 1.1, MINT, rounded=True, radius=0.08)
         tx3 = _txbox(slide, bx + 0.5, 7.4, bw - 1.0, 1.1)
-        tf3 = tx3.text_frame
-        tf3.word_wrap = True
-        tf3.vertical_anchor = MSO_ANCHOR.MIDDLE
-        _tf_clear(tf3)
-        _para(tf3, member.get('role', ''), 13, bold=True, color=WHITE, align=PP_ALIGN.RIGHT)
+        tf3_role = tx3.text_frame
+        tf3_role.word_wrap = True
+        tf3_role.vertical_anchor = MSO_ANCHOR.MIDDLE
+        _tf_clear(tf3_role)
+        _para(tf3_role, role, 12, bold=True, color=WHITE,
+              align=_align_for(lang), rtl=_is_rtl(lang))
 
-        tx4 = _txbox(slide, bx + 0.3, 8.8, bw - 0.6, bh - 6.3)
+        # Experience text
+        exp_key = 'experience_en' if lang == 'en' else 'experience'
+        exp = member.get(exp_key) or member.get('experience', '')
+        tx4 = _txbox(slide, bx + 0.3, 8.7, bw - 0.6, bh - 7.1)
         tf4 = tx4.text_frame
         tf4.word_wrap = True
         _tf_clear(tf4)
-        _para(tf4, member.get('experience', ''), 13, color=SLATE, align=PP_ALIGN.RIGHT)
+        _para(tf4, exp, 11, color=SLATE,
+              align=_align_for(lang), rtl=_is_rtl(lang))
+
+        # Qualifications bullets (thin MINT divider + bullet list)
+        quals_key = 'qualifications_en' if lang == 'en' else 'qualifications'
+        quals = member.get(quals_key) or member.get('qualifications', [])
+        if quals and isinstance(quals, list):
+            divider_y = 3.0 + bh - 2.6
+            _rect(slide, bx + 0.4, divider_y, bw - 0.8, 0.06, MINT)
+            qt = _txbox(slide, bx + 0.3, divider_y + 0.12, bw - 0.6, 2.4)
+            qtf = qt.text_frame
+            qtf.word_wrap = True
+            _tf_clear(qtf)
+            for q in quals[:4]:
+                bullet = ('• ' if lang == 'en' else '◈ ') + str(q)
+                _para(qtf, bullet, 10, color=TEAL,
+                      align=_align_for(lang), rtl=_is_rtl(lang))
+
+
+def _slide_team_pages(prs, data, client_logo, lang='ar'):
+    """Render team across multiple slides (3 members per slide)."""
+    team = data.get('sections', {}).get('team', [])
+    if not team:
+        return
+    page_size = 3
+    pages = [team[i:i + page_size] for i in range(0, len(team), page_size)]
+    total_pages = len(pages)
+    for page_num, members_page in enumerate(pages, 1):
+        _slide_team_page(prs, members_page, page_num, total_pages,
+                         slide_num=7 + (page_num - 1),
+                         client_logo=client_logo, lang=lang)
+
+
+def _slide_team(prs, data, client_logo):
+    """Legacy alias — calls multi-page version with Arabic."""
+    _slide_team_pages(prs, data, client_logo, lang='ar')
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1864,6 +1958,7 @@ def _sanitize_data(obj):
 def build_pptx(data: dict, output_path: str):
     # STRICT RULE: sanitize ALL strings before any slide is drawn
     data = _sanitize_data(data)
+    lang = data.get('language', 'ar')
 
     prs = Presentation()
     prs.slide_width = Cm(W)
@@ -1887,7 +1982,7 @@ def build_pptx(data: dict, output_path: str):
         _slide_workplan_day(prs, day, i + 1, len(workplan), client_logo)
 
     _slide_gantt(prs, data, client_logo)
-    _slide_team(prs, data, client_logo)
+    _slide_team_pages(prs, data, client_logo, lang=lang)
     _slide_track_record(prs, data, client_logo)
     _slide_innovation(prs, data, client_logo)
     _slide_governance(prs, data, client_logo)
