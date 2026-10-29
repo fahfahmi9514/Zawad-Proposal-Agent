@@ -702,7 +702,8 @@ def _generate_new(draft_text: str):
 | الجهة | {proposal_data.get('client_name', '—')} |
 | الإجمالي | {total} ريال عماني |
 {req_line}{review_line}
-📁 **ملف العرض:** `completed/{pptx_path.name}`{drive_line}{warnings_block}
+📁 **ملف العرض:** `completed/{pptx_path.name}`
+🖥️ **معاينة الشرائح:** [افتح المعاينة](http://localhost:5050/preview){drive_line}{warnings_block}
 
 ---
 💬 هل تريد أي تعديلات؟ اكتبها بالعربية أو الإنجليزية وسأطبّقها فوراً.
@@ -769,6 +770,7 @@ def _patch_existing(correction: str):
 🗑️ الملف القديم حُذف تلقائياً
 📁 **الملف الجديد:** `completed/{new_pptx.name}`
 💰 **الإجمالي الجديد:** {total} ريال عماني{review_line}{drive_line}
+🖥️ **معاينة الشرائح:** [افتح المعاينة](http://localhost:5050/preview)
 
 هل تريد تعديلات أخرى؟"""
 
@@ -780,6 +782,292 @@ def _patch_existing(correction: str):
             'reply': f'❌ **حدث خطأ أثناء التعديل:**\n\n`{str(exc)[:300]}`',
             'mode': session['mode']
         })
+
+
+# ── Slide Preview ───────────────────────────────────────────────
+
+def _build_preview_html(data: dict) -> str:
+    """Build a complete HTML preview page from proposal data."""
+    import html as _html
+    sec = data.get('sections', {})
+    pricing = sec.get('pricing', {})
+    lang = data.get('language', 'ar')
+
+    def esc(s): return _html.escape(str(s)) if s else ''
+    def trunc(s, n=350): return esc(str(s)[:n]) + ('…' if len(str(s)) > n else '')
+
+    slides = []
+    num = [0]
+    def next_num():
+        num[0] += 1
+        return str(num[0]).zfill(2)
+
+    def card(title, body_html, bg='#fff'):
+        n = next_num()
+        return f'''<div class="slide-card" id="slide-{n}">
+  <div class="slide-header">
+    <span class="slide-num">{n}</span>
+    <span class="slide-title">{esc(title)}</span>
+    <button class="edit-btn" onclick="openEdit('{n}','{esc(title)}')">✏️ تعديل</button>
+  </div>
+  <div class="slide-body">{body_html}</div>
+</div>'''
+
+    # 01 Cover
+    slides.append(card('الغلاف', f'''
+      <div class="kv"><b>البرنامج:</b> {esc(data.get('program_title',''))}</div>
+      <div class="kv"><b>الجهة:</b> {esc(data.get('client_name',''))}</div>
+      <div class="kv"><b>النوع:</b> {esc(data.get('program_category',''))}</div>
+      <div class="kv"><b>رقم المناقصة:</b> {esc(data.get('tender_number','—'))}</div>'''))
+
+    # 02 Cover Letter
+    slides.append(card('خطاب التقديم', f'<p>{trunc(sec.get("cover_letter",""),400)}</p>'))
+
+    # 03 Executive Summary / Stats
+    stats_html = '<div class="stat-grid">'
+    for s in data.get('key_stats', []):
+        stats_html += f'<div class="stat-tile"><div class="stat-num">{esc(s.get("number",""))}</div><div class="stat-lbl">{esc(s.get("label",""))}</div></div>'
+    stats_html += '</div>'
+    stats_html += f'<p style="margin-top:10px">{trunc(sec.get("key_message",""),250)}</p>'
+    slides.append(card('الملخص التنفيذي', stats_html))
+
+    # 04 Commitments grid
+    cl = sec.get('commitments_list', [])
+    clist_html = '<ul>' + ''.join(f'<li>{esc(c)}</li>' for c in cl) + '</ul>' if cl else f'<p>{trunc(sec.get("commitments",""))}</p>'
+    slides.append(card('الالتزامات الرئيسية', clist_html))
+
+    # 05 About Zawad
+    slides.append(card('نبذة عن زواد', f'<p>{trunc(sec.get("company_overview",""),300)}</p>'))
+
+    # 06 Requirements Understanding
+    slides.append(card('فهمنا لنطاق العمل', f'<p>{trunc(sec.get("requirements_understanding",""),400)}</p>'))
+
+    # 07 Expected Outputs
+    outputs = sec.get('expected_outputs', [])
+    out_html = '<div class="output-grid">'
+    for o in outputs:
+        out_html += f'<div class="output-card"><span class="out-num">{esc(o.get("number",""))}</span><b>{esc(o.get("title",""))}</b><p>{esc(o.get("description",""))}</p></div>'
+    out_html += '</div>'
+    slides.append(card('المخرجات المتوقعة', out_html))
+
+    # 08 Methodology
+    slides.append(card('المنهجية المقترحة', f'<p>{trunc(sec.get("methodology",""),300)}</p>'))
+
+    # 09+ Workplan days
+    for d in sec.get('workplan', []):
+        acts = d.get('activities', [])
+        body = f'<b>{esc(d.get("title",""))}</b><ul>' + ''.join(f'<li>{esc(a)}</li>' for a in acts) + '</ul>'
+        slides.append(card(f'خطة العمل — {esc(d.get("title","يوم"))}', body))
+
+    # Gantt
+    slides.append(card('الإطار الزمني التفصيلي', '<p>الإطار الزمني التفصيلي — انظر الملف للجدول الكامل</p>'))
+
+    # Team slides
+    team = sec.get('team', [])
+    for m in team:
+        name_key = 'name_en' if lang == 'en' else 'name'
+        role_key = 'role_en' if lang == 'en' else 'role'
+        exp_key = 'experience_en' if lang == 'en' else 'experience'
+        quals = m.get('qualifications_en' if lang == 'en' else 'qualifications', [])
+        body = f'''<b style="font-size:16px">{esc(m.get(name_key) or m.get('name',''))}</b>
+          <div class="role-badge">{esc(m.get(role_key) or m.get('role',''))}</div>
+          <p style="margin-top:8px">{trunc(m.get(exp_key) or m.get('experience',''),200)}</p>
+          {'<ul>' + ''.join(f"<li>{esc(q)}</li>" for q in quals[:4]) + '</ul>' if quals else ''}'''
+        slides.append(card(f'فريق العمل — {esc(m.get(name_key) or m.get("name",""))}', body))
+
+    # Learning Measurement (08 in TOC)
+    lm = sec.get('learning_measurement', {})
+    if lm:
+        tools = lm.get('tools', [])
+        lm_body = f'''<div class="kv"><b>التقييم القبلي:</b> {trunc(lm.get('pre_assessment',''),150)}</div>
+          <div class="kv"><b>التقييم البعدي:</b> {trunc(lm.get('post_assessment',''),150)}</div>
+          <div class="kv"><b>متابعة الأثر:</b> {trunc(lm.get('impact_followup',''),150)}</div>
+          {'<ul>' + ''.join(f"<li>{esc(t)}</li>" for t in tools) + '</ul>' if tools else ''}'''
+        slides.append(card('أدوات قياس التعلم', lm_body))
+    else:
+        slides.append(card('أدوات قياس التعلم', '<p>التقييم القبلي والبعدي — كيركباتريك المستوى 1–4 — متابعة 60-90 يوماً</p>'))
+
+    # Governance
+    slides.append(card('الحوكمة وضمان الجودة', '<p>الحوكمة وضمان الجودة — كيركباتريك المستوى 1–4 — مراجعة داخلية — اعتماد الجهة قبل كل مرحلة</p>'))
+
+    # Risk Matrix
+    risks = sec.get('risks', [])
+    if risks:
+        risk_html = '<table class="data-table"><thead><tr><th>المخاطرة</th><th>الاحتمالية</th><th>الأثر</th><th>الإجراء الوقائي</th><th>خطة الطوارئ</th></tr></thead><tbody>'
+        for r in risks:
+            risk_html += f'<tr><td>{esc(r.get("risk",""))}</td><td>{esc(r.get("probability",""))}</td><td>{esc(r.get("impact",""))}</td><td>{esc(r.get("preventive",""))}</td><td>{esc(r.get("contingency",""))}</td></tr>'
+        risk_html += '</tbody></table>'
+        slides.append(card('إدارة المخاطر', risk_html))
+
+    # Innovation
+    pts = sec.get('innovation_points', [])
+    if pts:
+        inn_html = '<div class="inno-grid">'
+        for p in pts:
+            inn_html += f'<div class="inno-card"><div class="inno-icon">{esc(p.get("icon","⭐"))}</div><b>{esc(p.get("title",""))}</b><p>{esc(p.get("description",""))}</p></div>'
+        inn_html += '</div>'
+        slides.append(card('الابتكار والقيمة المضافة', inn_html))
+
+    # Track Record
+    slides.append(card('المشاريع المكتملة', '<p>12 مشروعاً مكتملاً — انظر الملف للجدول الكامل</p>'))
+
+    # Financial Summary
+    subtotal = pricing.get('subtotal_omr', 0)
+    vat = pricing.get('vat_omr', 0)
+    total = pricing.get('grand_total_omr', 0)
+    vat_pct = int(round(float(pricing.get('vat_rate', 0.05)) * 100))
+    validity = data.get('stats', {}).get('validity', '90 يوماً')
+    fin_body = f'''<div class="fin-grid">
+      <div class="fin-box mint"><div class="fin-val">{int(round(float(total))):,}</div><div class="fin-lbl">الإجمالي الكلي (ر.ع)</div></div>
+      <div class="fin-box teal"><div class="fin-val">{int(round(float(vat))):,}</div><div class="fin-lbl">ضريبة {vat_pct}% (ر.ع)</div></div>
+      <div class="fin-box navy"><div class="fin-val">{int(round(float(subtotal))):,}</div><div class="fin-lbl">قبل الضريبة (ر.ع)</div></div>
+    </div>
+    <p style="margin-top:10px;color:#0E7C86"><b>صلاحية العرض:</b> {esc(validity)}</p>'''
+    slides.append(card('العرض المالي — ملخص', fin_body))
+
+    # Financial Table
+    items = pricing.get('line_items', [])
+    if items:
+        ft_html = '<table class="data-table"><thead><tr><th>البند</th><th>الكمية</th><th>الوحدة</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>'
+        for it in items:
+            try: rate = f"{int(round(float(it.get('rate_omr',0)))):,}"
+            except: rate = str(it.get('rate_omr',''))
+            try: tot = f"{int(round(float(it.get('total_omr',0)))):,}"
+            except: tot = str(it.get('total_omr',''))
+            ft_html += f'<tr><td>{esc(it.get("description",""))}</td><td>{esc(str(it.get("quantity","")))}</td><td>{esc(str(it.get("unit","")))}</td><td>{rate}</td><td>{tot}</td></tr>'
+        ft_html += f'</tbody></table><p style="text-align:left;margin-top:8px;font-weight:bold">الإجمالي الكلي: {int(round(float(total))):,} ر.ع</p>'
+        slides.append(card('العرض المالي — تفصيلي', ft_html))
+
+    # Commitments page
+    slides.append(card('الإقرارات والالتزامات', clist_html))
+
+    # Declarations
+    decl_html = '<ul><li>إقرار الاطلاع على شروط المناقصة وقبولها</li><li>السجل التجاري ساري المفعول</li><li>شهادة التسجيل الضريبي</li><li>السيرة الذاتية لفريق العمل</li><li>إقرار عدم التعارض</li></ul>'
+    slides.append(card('الوثائق والإقرارات', decl_html))
+
+    # Closing
+    slides.append(card('الختام', f'<h2 style="color:#0A2647">شكراً لثقتكم</h2><p>{esc(data.get("client_name",""))} · info@zawad.om · +968 99232775 · www.zawad.om</p>'))
+
+    # Build sidebar entries
+    sidebar_items = ''
+    for i in range(1, num[0] + 1):
+        n = str(i).zfill(2)
+        sidebar_items += f'<a class="sidebar-item" href="#slide-{n}" onclick="highlight(\'{n}\')">{n}</a>'
+
+    cards_html = '\n'.join(slides)
+
+    return f'''<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>معاينة الشرائح — زواد</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:"Segoe UI",Arial,sans-serif;background:#F0F4F8;color:#1B2A3A;display:flex;flex-direction:column;height:100vh;overflow:hidden}}
+.top-bar{{background:#0A2647;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0}}
+.top-bar h1{{font-size:16px;color:#2EC4B6;flex:1}}
+.top-bar button{{padding:6px 14px;background:transparent;border:1.5px solid #2EC4B6;color:#2EC4B6;border-radius:8px;cursor:pointer;font-size:13px}}
+.top-bar button:hover{{background:#2EC4B6;color:#0A2647}}
+.layout{{display:flex;flex:1;overflow:hidden}}
+.sidebar{{width:70px;background:#0A2647;overflow-y:auto;padding:10px 0;flex-shrink:0}}
+.sidebar-item{{display:block;text-align:center;padding:8px 4px;color:rgba(255,255,255,0.65);font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;border-right:3px solid transparent;transition:.15s}}
+.sidebar-item:hover{{color:#2EC4B6;border-right-color:#2EC4B6}}
+.sidebar-item.active{{color:#2EC4B6;border-right-color:#2EC4B6;background:rgba(46,196,182,0.1)}}
+.main{{flex:1;overflow-y:auto;padding:20px}}
+.slide-card{{background:#fff;border-radius:12px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;scroll-margin-top:20px}}
+.slide-header{{background:#0A2647;padding:12px 16px;display:flex;align-items:center;gap:12px}}
+.slide-num{{width:32px;height:32px;border-radius:50%;background:#2EC4B6;color:#0A2647;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0}}
+.slide-title{{color:#fff;font-size:14px;font-weight:600;flex:1}}
+.edit-btn{{padding:4px 12px;background:transparent;border:1.5px solid #2EC4B6;color:#2EC4B6;border-radius:6px;cursor:pointer;font-size:12px}}
+.edit-btn:hover{{background:#2EC4B6;color:#0A2647}}
+.slide-body{{padding:16px;font-size:13px;line-height:1.7}}
+.kv{{margin-bottom:6px}}
+.stat-grid{{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}}
+.stat-tile{{background:#0A2647;border-radius:8px;padding:12px 16px;min-width:80px;text-align:center}}
+.stat-num{{color:#2EC4B6;font-size:22px;font-weight:900}}
+.stat-lbl{{color:#fff;font-size:11px;margin-top:4px}}
+.role-badge{{display:inline-block;background:#2EC4B6;color:#0A2647;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;margin:6px 0}}
+.output-grid{{display:flex;flex-wrap:wrap;gap:8px}}
+.output-card{{background:#F0F4F8;border-radius:8px;padding:10px;min-width:160px;flex:1}}
+.out-num{{display:inline-block;background:#0A2647;color:#2EC4B6;border-radius:50%;width:24px;height:24px;text-align:center;line-height:24px;font-size:11px;font-weight:700;margin-bottom:6px}}
+.fin-grid{{display:flex;gap:12px;flex-wrap:wrap}}
+.fin-box{{border-radius:10px;padding:14px 18px;flex:1;min-width:120px;text-align:center}}
+.fin-box.mint{{background:#2EC4B6}}.fin-box.teal{{background:#0E7C86}}.fin-box.navy{{background:#0A2647}}
+.fin-val{{color:#fff;font-size:22px;font-weight:900}}.fin-lbl{{color:rgba(255,255,255,0.8);font-size:12px;margin-top:4px}}
+.inno-grid{{display:flex;flex-wrap:wrap;gap:8px}}
+.inno-card{{background:#F0F4F8;border-radius:8px;padding:10px;flex:1;min-width:140px;text-align:center}}
+.inno-icon{{font-size:22px;margin-bottom:6px}}
+.data-table{{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}}
+.data-table th{{background:#0A2647;color:#fff;padding:7px 10px;text-align:right}}
+.data-table td{{border:1px solid #D0DCE8;padding:6px 10px;text-align:right}}
+.data-table tr:nth-child(even) td{{background:#F0F4F8}}
+ul{{padding-right:18px;margin:6px 0}}li{{margin-bottom:4px}}
+.modal-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center}}
+.modal-overlay.open{{display:flex}}
+.modal{{background:#fff;border-radius:12px;padding:24px;width:480px;max-width:95vw;direction:rtl}}
+.modal h3{{color:#0A2647;margin-bottom:12px}}
+.modal textarea{{width:100%;border:1.5px solid #D0DCE8;border-radius:8px;padding:10px;font-size:14px;font-family:inherit;resize:vertical;min-height:80px}}
+.modal-actions{{display:flex;gap:10px;margin-top:12px;justify-content:flex-end}}
+.btn-copy{{padding:8px 18px;background:#2EC4B6;border:none;border-radius:8px;color:#0A2647;font-weight:700;cursor:pointer}}
+.btn-close{{padding:8px 18px;background:transparent;border:1.5px solid #D0DCE8;border-radius:8px;cursor:pointer}}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1>🖥️ معاينة الشرائح — زواد للتطوير والاستشارات</h1>
+  <span style="color:rgba(255,255,255,0.6);font-size:12px">{esc(data.get('program_title',''))} · {esc(data.get('client_name',''))}</span>
+  <button onclick="location.reload()">↺ تحديث</button>
+</div>
+<div class="layout">
+  <div class="sidebar">{sidebar_items}</div>
+  <div class="main">{cards_html}</div>
+</div>
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>✏️ تعديل الشريحة</h3>
+    <p style="color:#6B7D8E;font-size:12px;margin-bottom:8px">انسخ النص واكتبه في نافذة المحادثة</p>
+    <textarea id="edit-text" rows="3"></textarea>
+    <div class="modal-actions">
+      <button class="btn-close" onclick="closeEdit()">إغلاق</button>
+      <button class="btn-copy" onclick="copyEdit()">📋 نسخ التعديل</button>
+    </div>
+  </div>
+</div>
+<script>
+function openEdit(num, title){{
+  document.getElementById('edit-text').value = 'عدّل الشريحة ' + num + ' (' + title + '): ';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-text').focus(),50);
+}}
+function closeEdit(){{ document.getElementById('edit-modal').classList.remove('open'); }}
+function copyEdit(){{
+  const t = document.getElementById('edit-text');
+  if(navigator.clipboard){{ navigator.clipboard.writeText(t.value); }}
+  else{{ t.select(); document.execCommand('copy'); }}
+  closeEdit();
+  alert('تم النسخ! الصقه في نافذة المحادثة.');
+}}
+function highlight(n){{
+  document.querySelectorAll('.sidebar-item').forEach(a=>a.classList.remove('active'));
+  const target = document.querySelector('.sidebar-item[href="#slide-'+n+'"]');
+  if(target) target.classList.add('active');
+}}
+document.getElementById('edit-modal').addEventListener('click', function(e){{
+  if(e.target===this) closeEdit();
+}});
+</script>
+</body>
+</html>'''
+
+
+@app.route('/preview')
+def preview():
+    data = session.get('proposal_data')
+    if not data:
+        return '<html dir="rtl"><body style="font-family:Arial;padding:40px;background:#0A2647;color:#2EC4B6;text-align:center"><h2>لا يوجد عرض حالياً</h2><p style="color:white;margin-top:12px">أنشئ عرضاً أولاً من نافذة المحادثة</p></body></html>'
+    return _build_preview_html(data)
 
 
 # ── Entry point ──────────────────────────────────────────────────

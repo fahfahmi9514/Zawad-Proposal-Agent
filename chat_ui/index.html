@@ -52,6 +52,13 @@
   }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .status-label { font-size: 11px; color: rgba(255,255,255,0.6); }
+  .preview-btn {
+    margin-right: 10px; padding: 6px 14px;
+    background: transparent; border: 1.5px solid var(--mint);
+    color: var(--mint); border-radius: 8px; cursor: pointer;
+    font-size: 12px; font-family: inherit; white-space: nowrap;
+  }
+  .preview-btn:hover { background: var(--mint); color: var(--navy); }
 
   /* ── Chat area ── */
   #chat {
@@ -192,6 +199,7 @@
     <h1>زواد — مساعد العروض</h1>
     <p>Zawad Proposal Assistant · Powered by Gemini AI</p>
   </div>
+  <button class="preview-btn" onclick="window.open('http://localhost:5050/preview','_blank')">🖥️ معاينة الشرائح</button>
   <div class="status-dot"></div>
   <span class="status-label">نشط</span>
 </header>
