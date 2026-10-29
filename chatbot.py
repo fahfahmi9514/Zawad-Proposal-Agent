@@ -69,6 +69,7 @@ session = {
     'pptx_path':     None,
     'req_data':      {},   # requirements extracted from tender — kept for re-review after edits
     'staged_texts':  [],   # file texts waiting to be combined into next generation
+    'pending_draft': None, # tender text held while waiting for user confirmation
     'mode':          'await_draft' if _api_key else 'await_key',
 }
 
@@ -155,6 +156,11 @@ def chat():
             session['draft_text'] = None
             session['pptx_path'] = None
             mode = 'await_draft'
+        # If user typed a question/instruction alongside the file — go conversational
+        if typed and mode == 'await_draft':
+            session['pending_draft'] = user_msg
+            session['mode'] = 'await_confirm'
+            return _handle_with_question(user_msg, typed)
 
     if not user_msg:
         return jsonify({'reply': 'الصق نص المناقصة أو أرفق ملفاً ثم اضغط إرسال.', 'mode': mode})
@@ -170,7 +176,38 @@ def chat():
 
     # ── Draft collection ──────────────────────────────────────────────────────
     if mode == 'await_draft':
+        # If the message is short and looks like a question (not a full tender), answer it
+        QUESTION_SIGNALS = ['؟', '?', 'ما هي', 'ما هو', 'كيف', 'هل', 'what', 'how', 'can you',
+                            'متطلبات', 'requirements', 'اشرح', 'explain', 'وضح', 'أخبرني']
+        is_question = len(user_msg) < 300 and any(kw in user_msg for kw in QUESTION_SIGNALS)
+        if is_question and not session.get('pending_draft'):
+            return jsonify({
+                'reply': '📎 من فضلك أرفق ملف المناقصة أولاً، ثم اكتب سؤالك وأرسل — سأجيبك وأنتظر موافقتك قبل البدء.',
+                'mode': mode
+            })
         return _generate_new(user_msg)
+
+    # ── Conversational confirmation before generating ─────────────────────────
+    if mode == 'await_confirm':
+        YES_KWS = ['نعم', 'يلا', 'yes', 'go', 'ابدأ', 'تفضل', 'اكمل', 'أكمل',
+                   'ok', 'okay', 'موافق', 'ماشي', 'sure', 'proceed', 'هيا', 'يس',
+                   'ابني', 'انشئ', 'أنشئ', 'ابدأ', 'بالتوفيق', 'جهز', 'اعمل']
+        NO_KWS  = ['لا', 'no', 'cancel', 'إلغاء', 'stop', 'الغ', 'ألغِ']
+        msg_lower = user_msg.lower().strip()
+
+        if any(kw in msg_lower for kw in YES_KWS):
+            draft = session.get('pending_draft') or user_msg
+            session['pending_draft'] = None
+            session['mode'] = 'await_draft'
+            return _generate_new(draft)
+
+        if any(kw in msg_lower for kw in NO_KWS):
+            session['pending_draft'] = None
+            session['mode'] = 'await_draft'
+            return jsonify({'reply': '🔄 تم الإلغاء. أرفق المناقصة من جديد عندما تكون جاهزاً.', 'mode': 'await_draft'})
+
+        # User asked another question — answer it and ask again
+        return _answer_about_tender(user_msg)
 
     # ── Correction / refinement ───────────────────────────────────────────────
     if mode == 'ready':
@@ -456,6 +493,108 @@ def _validate_proposal(data: dict) -> list:
             warnings.append(f'⚠️ القسم "{field}" فارغ في المخرجات.')
 
     return warnings
+
+
+def _format_req_summary(req: dict) -> str:
+    if not req:
+        return '_تعذّر استخراج المتطلبات تلقائياً — سيتم التعامل مع النص مباشرةً._'
+    lines = []
+    if req.get('client_name'):      lines.append(f'🏢 **الجهة:** {req["client_name"]}')
+    if req.get('tender_number'):    lines.append(f'📄 **رقم المناقصة:** {req["tender_number"]}')
+    if req.get('program_type'):     lines.append(f'📚 **نوع العمل:** {req["program_type"]}')
+    if req.get('participants'):     lines.append(f'👥 **المشاركون:** {req["participants"]}')
+    if req.get('duration_days'):    lines.append(f'📅 **المدة:** {req["duration_days"]} يوم')
+    budget = req.get('budget_ceiling_omr', 0)
+    if budget and str(budget) not in ('0', ''):
+        lines.append(f'💰 **سقف الميزانية:** {budget} ريال عماني')
+    mandatory = req.get('mandatory_requirements', [])
+    if mandatory:
+        lines.append('\n✅ **المتطلبات الإلزامية:**')
+        for r in mandatory[:6]: lines.append(f'   • {r}')
+    compliance = req.get('compliance_items', [])
+    if compliance:
+        lines.append('\n⚖️ **الالتزامات القانونية:**')
+        for c in compliance[:4]: lines.append(f'   • {c}')
+    red_flags = req.get('red_flags', [])
+    if red_flags:
+        lines.append('\n🚩 **نقاط حرجة — لا تُهمل:**')
+        for f in red_flags[:3]: lines.append(f'   • {f}')
+    return '\n'.join(lines) if lines else '_لا متطلبات محددة._'
+
+
+def _answer_about_tender(question: str):
+    """Answer a question about the pending tender, then ask for confirmation."""
+    tender_text = session.get('pending_draft', '')
+    try:
+        from google import genai
+        client = genai.Client(api_key=session['api_key'])
+        prompt = (
+            'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
+            'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات غير موجودة.\n\n'
+            f'=== الوثيقة ===\n{tender_text[:8000]}\n\n'
+            f'=== سؤال المستخدم ===\n{question}'
+        )
+        from google.genai import types as _types
+        resp = client.models.generate_content(
+            model='gemini-3.5-flash-lite',
+            contents=prompt,
+            config=_types.GenerateContentConfig(temperature=0.2, max_output_tokens=800)
+        )
+        answer = resp.text.strip()
+    except Exception as e:
+        logger.warning(f'Tender Q&A failed: {e}')
+        answer = '📋 تم استلام سؤالك. يمكنني الإجابة بشكل أفضل بعد إنشاء العرض.'
+
+    reply = (
+        f'{answer}\n\n'
+        '---\n'
+        '💬 هل أبدأ الآن بإنشاء العرض؟ اكتب **نعم** أو **يلا** للمتابعة، '
+        'أو اطرح أي سؤال آخر.'
+    )
+    return jsonify({'reply': reply, 'mode': 'await_confirm'})
+
+
+def _handle_with_question(full_content: str, typed_question: str):
+    """Extract requirements, answer the user's question, ask for confirmation."""
+    from extractor import extract_requirements
+    req = {}
+    try:
+        req = extract_requirements(full_content, session['api_key'])
+        session['req_data'] = req
+    except Exception as e:
+        logger.warning(f'Pre-extract failed: {e}')
+
+    summary = _format_req_summary(req)
+
+    try:
+        from google import genai
+        from google.genai import types as _types
+        client = genai.Client(api_key=session['api_key'])
+        prompt = (
+            'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
+            'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات.\n\n'
+            f'=== الوثيقة ===\n{full_content[:8000]}\n\n'
+            f'=== سؤال المستخدم ===\n{typed_question}'
+        )
+        resp = client.models.generate_content(
+            model='gemini-3.5-flash-lite',
+            contents=prompt,
+            config=_types.GenerateContentConfig(temperature=0.2, max_output_tokens=800)
+        )
+        answer = resp.text.strip()
+    except Exception as e:
+        logger.warning(f'Q&A failed: {e}')
+        answer = '📋 تم استلام ملفك وسؤالك.'
+
+    reply = (
+        f'{answer}\n\n'
+        f'---\n\n'
+        f'📋 **ملخص متطلبات المناقصة:**\n{summary}\n\n'
+        f'---\n'
+        f'💬 هل أبدأ الآن بإنشاء العرض؟ اكتب **نعم** أو **يلا** للمتابعة، '
+        f'أو اطرح أي سؤال آخر.'
+    )
+    return jsonify({'reply': reply, 'mode': 'await_confirm'})
 
 
 def _generate_new(draft_text: str):
