@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>زواد — مساعد العروض</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:    #0A2647;
+    --mint:    #2EC4B6;
+    --teal:    #0E7C86;
+    --white:   #FFFFFF;
+    --bg:      #F0F4F8;
+    --card:    #FFFFFF;
+    --border:  #D0DCE8;
+    --user-bg: #0A2647;
+    --bot-bg:  #FFFFFF;
+    --bot-bd:  #D0DCE8;
+    --text:    #1B2A3A;
+    --muted:   #6B7D8E;
+    --input-bg:#FFFFFF;
+  }
+
+  html, body { height: 100%; font-family: 'Segoe UI', 'Arial', sans-serif; background: var(--bg); color: var(--text); }
+
+  /* ── Header ── */
+  header {
+    background: var(--navy);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  }
+  .logo-circle {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--mint); display: flex; align-items: center;
+    justify-content: center; font-size: 18px; font-weight: 900;
+    color: var(--navy); flex-shrink: 0;
+  }
+  .header-text h1 { font-size: 17px; color: var(--mint); font-weight: 700; }
+  .header-text p  { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+  .status-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #4CAF50; margin-right: auto; margin-left: 4px;
+    box-shadow: 0 0 6px #4CAF50;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .status-label { font-size: 11px; color: rgba(255,255,255,0.6); }
+
+  /* ── Chat area ── */
+  #chat {
+    position: fixed;
+    top: 74px; bottom: 78px; left: 0; right: 0; transition: bottom .15s;
+    overflow-y: auto;
+    padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* ── Message bubbles ── */
+  .msg { display: flex; gap: 10px; max-width: 78%; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+  .msg.user  { align-self: flex-start; flex-direction: row-reverse; }
+  .msg.bot   { align-self: flex-end; }
+
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+  }
+  .msg.user .avatar  { background: var(--user-bg); color: var(--mint); }
+  .msg.bot  .avatar  { background: var(--mint);    color: var(--navy); }
+
+  .bubble {
+    padding: 12px 16px; border-radius: 16px; line-height: 1.65;
+    font-size: 14px; word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: var(--navy); color: var(--white);
+    border-radius: 16px 4px 16px 16px;
+  }
+  .msg.bot .bubble {
+    background: var(--bot-bg); color: var(--text);
+    border: 1px solid var(--bot-bd);
+    border-radius: 4px 16px 16px 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+
+  .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+  .bubble td, .bubble th { border: 1px solid var(--border); padding: 6px 10px; }
+  .bubble th { background: var(--bg); }
+  .bubble code { background: #f0f4f8; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  .bubble strong { color: var(--teal); }
+  .bubble p { margin-bottom: 6px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble ul, .bubble ol { padding-right: 20px; margin: 4px 0; }
+
+  /* typing indicator */
+  .typing .bubble { display: flex; align-items: center; gap: 5px; min-height: 38px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); animation: bounce .9s infinite; }
+  .dot:nth-child(2) { animation-delay: .15s; }
+  .dot:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-7px)} }
+
+  /* ── Input bar ── */
+  #input-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--card); border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex; gap: 10px; align-items: flex-end;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+  }
+  #msg-input {
+    flex: 1; border: 1.5px solid var(--border);
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; font-family: inherit;
+    resize: none; min-height: 44px; max-height: 140px;
+    background: var(--input-bg); color: var(--text);
+    outline: none; transition: border-color .2s;
+    direction: auto;
+  }
+  #msg-input:focus { border-color: var(--mint); }
+  #msg-input::placeholder { color: var(--muted); }
+
+  #send-btn {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--navy); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background .2s;
+  }
+  #send-btn:hover  { background: var(--teal); }
+  #send-btn:active { transform: scale(.95); }
+  #send-btn svg { width: 20px; height: 20px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Attach button ── */
+  #attach-btn {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: transparent; border: 1.5px solid var(--border);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .2s; color: var(--muted);
+  }
+  #attach-btn:hover { border-color: var(--mint); color: var(--teal); }
+  #attach-btn svg { width: 20px; height: 20px; }
+  #file-input { display: none; }
+
+  /* ── Staged files area ── */
+  #staged-area {
+    position: fixed; bottom: 78px; left: 0; right: 0;
+    padding: 0 16px; display: flex; flex-wrap: wrap; gap: 6px;
+    background: var(--card); border-top: 1px solid var(--border);
+  }
+  #staged-area:empty { display: none; }
+  .file-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: #e8f4f8; border: 1px solid var(--mint);
+    border-radius: 8px; padding: 5px 10px;
+    font-size: 12px; color: var(--teal); margin: 6px 0 0;
+  }
+  .file-badge button {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 15px; line-height: 1;
+    padding: 0 2px;
+  }
+  .file-badge button:hover { color: #c0392b; }
+
+  /* ── New proposal button ── */
+  #new-btn {
+    font-size: 12px; padding: 6px 12px; border-radius: 8px;
+    background: transparent; border: 1.5px solid var(--border);
+    color: var(--muted); cursor: pointer; white-space: nowrap;
+    align-self: center; transition: all .2s;
+  }
+  #new-btn:hover { border-color: var(--mint); color: var(--teal); }
+
+  /* scrollbar */
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-circle">ز</div>
+  <div class="header-text">
+    <h1>زواد — مساعد العروض</h1>
+    <p>Zawad Proposal Assistant · Powered by Gemini AI</p>
+  </div>
+  <div class="status-dot"></div>
+  <span class="status-label">نشط</span>
+</header>
+
+<div id="chat"></div>
+
+<input type="file" id="file-input" accept=".pdf,.docx,.pptx,.txt" multiple onchange="stageFiles(this)">
+<div id="staged-area"></div>
+<div id="input-bar">
+  <button id="new-btn" title="بدء عرض جديد" onclick="newProposal()">+ عرض جديد</button>
+  <button id="attach-btn" title="إرفاق ملف (PDF, Word, PPT)" onclick="document.getElementById('file-input').click()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+    </svg>
+  </button>
+  <textarea id="msg-input" rows="1"
+    placeholder="الصق نص المناقصة هنا، أو أرفق ملف PDF/Word بالزر 📎، أو اكتب تعديلاً..."
+    oninput="autoResize(this)"></textarea>
+  <button id="send-btn" onclick="sendMessage()" title="إرسال">
+    <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+  </button>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('msg-input');
+let isWaiting = false;
+
+// Initial greeting
+window.addEventListener('load', async () => {
+  const res = await fetch('/api/status').then(r => r.json());
+  const greet = res.mode === 'await_key'
+    ? '👋 **مرحباً!**\n\nأنا مساعد زواد للعروض. قبل البدء، أحتاج إلى مفتاح Gemini API الخاص بك.\n\n🔑 احصل عليه مجاناً من [Google AI Studio](https://aistudio.google.com) ← **Get API Key**\n\nثم **الصق المفتاح هنا** وسأبدأ فوراً.'
+    : '👋 **أهلاً!**\n\nأنا مساعد زواد للعروض. **الصق نص المناقصة أو المسودة** وسأُنشئ لك عرضاً احترافياً بالعربية خلال دقائق.\n\n✅ تشمل الخدمة: العرض الكامل (PPTX) + تقرير مراجعة تلقائي.\n\nبعد الإنشاء يمكنك طلب أي تعديل مباشرة هنا.';
+  appendBot(greet);
+});
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+// Attach Enter key handler directly on the element — works for all IMEs and RTL input
+document.getElementById('msg-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+function newProposal() {
+  if (!confirm('هل تريد بدء مناقصة جديدة؟ سيتم مسح العرض الحالي من الذاكرة (الملفات تبقى).')) return;
+  sendRaw('عرض جديد');
+}
+
+let stagedFiles = [];
+
+function stageFiles(el) {
+  for (const f of el.files) stagedFiles.push(f);
+  el.value = '';
+  renderStaged();
+}
+
+function removeStaged(i) {
+  stagedFiles.splice(i, 1);
+  renderStaged();
+}
+
+function renderStaged() {
+  const area = document.getElementById('staged-area');
+  area.innerHTML = stagedFiles.map((f, i) =>
+    `<span class="file-badge">📎 ${escHtml(f.name)}<button onclick="removeStaged(${i})">×</button></span>`
+  ).join('');
+  // shift chat bottom to make room for staged badges
+  const chatEl = document.getElementById('chat');
+  const stagedH = area.offsetHeight;
+  chatEl.style.bottom = (78 + stagedH) + 'px';
+}
+
+async function sendMessage() {
+  const msg = input.value.trim();
+  if (!msg && stagedFiles.length === 0 || isWaiting) return;
+
+  // Build display text for user bubble
+  const fileLabels = stagedFiles.map(f => `📎 ${f.name}`).join('\n');
+  const displayMsg = [fileLabels, msg].filter(Boolean).join('\n');
+  appendUser(displayMsg);
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  const filesToUpload = [...stagedFiles];
+  stagedFiles = [];
+  renderStaged();
+
+  isWaiting = true;
+  const typingId = appendTyping();
+
+  try {
+    // Upload each file — extract text only, no generation yet
+    for (const file of filesToUpload) {
+      const form = new FormData();
+      form.append('file', file);
+      const upRes = await fetch('/api/upload', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
+      const upData = await upRes.json();
+      if (!upData.ok) {
+        removeTyping(typingId);
+        appendBot(`⚠️ **${file.name}:** ${upData.error || 'فشل رفع الملف.'}`);
+        isWaiting = false;
+        input.focus();
+        return;
+      }
+    }
+
+    // Now send the text message (or auto-trigger) — server combines all staged texts + this message
+    const textToSend = msg || (filesToUpload.length > 0 ? 'تم رفع الملفات. يرجى المتابعة.' : '');
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: textToSend}),
+      signal: AbortSignal.timeout(720000)
+    });
+    const data = await res.json();
+    removeTyping(typingId);
+    appendBot(data.reply);
+  } catch (err) {
+    removeTyping(typingId);
+    appendBot('❌ **انقطع الاتصال بالخادم.** تأكد أن `chatbot.py` لا يزال يعمل.');
+  } finally {
+    isWaiting = false;
+    input.focus();
+  }
+}
+
+async function sendRaw(msg) {
+  if (isWaiting) return;
+  appendUser(msg);
+  isWaiting = true;
+  const typingId = appendTyping();
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg}),
+      signal: AbortSignal.timeout(720000)
+    });
+    const data = await res.json();
+    removeTyping(typingId);
+    appendBot(data.reply);
+  } catch (err) {
+    removeTyping(typingId);
+    appendBot('❌ **انقطع الاتصال بالخادم.** تأكد أن `chatbot.py` لا يزال يعمل.');
+  } finally {
+    isWaiting = false;
+    input.focus();
+  }
+}
+
+function appendUser(text) {
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `<div class="avatar">أنت</div><div class="bubble">${escHtml(text)}</div>`;
+  chat.appendChild(el);
+  scrollBottom();
+}
+
+function appendBot(md) {
+  const el = document.createElement('div');
+  el.className = 'msg bot';
+  const html = marked.parse(md, {breaks: true});
+  el.innerHTML = `<div class="avatar">ز</div><div class="bubble">${html}</div>`;
+  chat.appendChild(el);
+  scrollBottom();
+}
+
+function appendTyping() {
+  const id = 'typing-' + Date.now();
+  const el = document.createElement('div');
+  el.className = 'msg bot typing';
+  el.id = id;
+  el.innerHTML = `<div class="avatar">ز</div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+  chat.appendChild(el);
+  scrollBottom();
+  return id;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function scrollBottom() {
+  setTimeout(() => chat.scrollTop = chat.scrollHeight, 50);
+}
+
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>

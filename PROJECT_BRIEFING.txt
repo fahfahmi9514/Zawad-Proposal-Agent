@@ -1,0 +1,523 @@
+================================================================
+ZAWAD PROPOSAL AGENT — COMPLETE PROJECT BRIEFING
+For: ChatGPT / Codex / any AI assistant
+================================================================
+
+WHAT THIS PROJECT IS
+--------------------
+A local Windows desktop app (Python + Flask) that:
+1. Accepts a tender document (paste text OR upload PDF/Word/PPT/TXT)
+2. Calls Google Gemini AI to generate a complete Arabic proposal (JSON)
+3. Builds a professional PowerPoint file (PPTX) from that JSON
+4. Saves the PPTX to: C:\Users\PC\Downloads\Proposals_2026\completed\
+5. Saves a review checklist to: C:\Users\PC\Downloads\Proposals_2026\review_needed\
+6. The user opens the chatbot at http://localhost:5050 in their browser
+
+The company is "زواد للتطوير والاستشارات" (Zawad for Development and Consulting),
+an Omani training/consulting firm that submits proposals for government tenders.
+
+================================================================
+FILE STRUCTURE — ALL FILES ARE IN:
+C:\Users\PC\Desktop\ZawadProposalAgent\
+================================================================
+
+KEY FILES:
+  chatbot.py          — Flask web server (main entry point), port 5050
+  generator.py        — Calls Gemini API, extracts JSON, fixes pricing math
+  builder.py          — Builds the PowerPoint PPTX from the proposal JSON
+  extractor.py        — Extracts structured requirements from tender text
+  reviewer.py         — Dual adversarial AI review of the proposal
+  reader.py           — Reads PDF/DOCX/PPTX/TXT files → plain text
+  rag.py              — Retrieves similar past proposals for style context
+  rag_index.json      — Index of past proposals for RAG lookup
+  requirements.txt    — Python dependencies
+  run_chatbot.bat     — Double-click to start the server (auto-kills old process)
+  chat_ui\index.html  — Frontend HTML/CSS/JS (RTL Arabic chatbot UI)
+  config\config.json  — Stores the Gemini API key (NEVER log or expose this)
+  assets\             — Contains zawad_logo.png, riyadah_card.png, partner_logos.png
+  past_proposals\     — Sample past proposals for RAG
+
+SECURITY CONSTRAINT (CRITICAL — MUST NEVER BE VIOLATED):
+  The Gemini API key is stored in config/config.json.
+  NEVER log or expose the API key in any output, error message, or UI.
+  The config is loaded silently at startup.
+  The setup window (API key input) only appears if no key exists yet.
+
+================================================================
+HOW TO START THE SERVER
+================================================================
+
+Double-click: C:\Users\PC\Desktop\ZawadProposalAgent\run_chatbot.bat
+
+Contents of run_chatbot.bat:
+  @echo off
+  title Zawad Proposal Chatbot
+  cd /d "%~dp0"
+  echo  Stopping any old server...
+  taskkill /F /IM python.exe >nul 2>&1
+  ping -n 2 127.0.0.1 >nul
+  echo.
+  echo  =============================================
+  echo   Zawad Proposal Chatbot
+  echo   http://localhost:5050
+  echo  =============================================
+  echo.
+  py chatbot.py
+  echo.
+  echo  Server stopped. Press any key to close.
+  pause
+
+IMPORTANT: You MUST restart the server (run_chatbot.bat) after editing any .py file.
+If the old process is still running with old code, fixes won't take effect.
+The bat file auto-kills python.exe before starting fresh.
+
+================================================================
+PYTHON DEPENDENCIES (requirements.txt)
+================================================================
+
+  google-genai>=2.0.0      — Gemini API SDK
+  pymupdf>=1.24.0          — PDF reading (imported as "pymupdf" or "fitz")
+  python-pptx>=1.0.0       — PowerPoint generation
+  python-docx>=1.1.0       — Word document reading
+  watchdog>=4.0.0          — File watching (agent mode)
+  flask>=3.0.0             — Web server
+
+Install with: pip install -r requirements.txt
+
+================================================================
+CHATBOT.PY — FLASK SERVER
+================================================================
+
+URL: http://localhost:5050
+Routes:
+  GET  /              → serves chat_ui/index.html
+  GET  /api/status    → returns current session mode and proposal info
+  POST /api/chat      → main chat endpoint (JSON body: {"message": "..."})
+  POST /api/upload    → file upload endpoint (multipart/form-data, field: "file")
+
+Session state (in-memory, single user, resets on server restart):
+  session['mode']          — 'await_key' | 'await_draft' | 'ready'
+  session['api_key']       — Gemini API key string
+  session['proposal_data'] — dict of the current proposal JSON
+  session['draft_text']    — original tender text that was submitted
+  session['pptx_path']     — path to the saved PPTX file
+
+Flow:
+  1. If no API key in config.json → mode = 'await_key'
+     User pastes Gemini API key → saved to config/config.json → mode = 'await_draft'
+  2. mode = 'await_draft': user pastes tender text OR uploads file
+     → _generate_new(text) is called
+  3. mode = 'ready': user types corrections/edits
+     → _patch_existing(correction) is called
+     → typing "عرض جديد" or similar resets to 'await_draft'
+
+File upload flow (/api/upload):
+  - Accepts: .pdf, .docx, .doc, .pptx, .ppt, .txt
+  - Saves to temp file → reader.py extracts text → calls _generate_new(text)
+  - Minimum text length check: 30 characters (internal to upload handler)
+  - NOTE: The /api/chat endpoint no longer has a 40-char minimum. It only
+    blocks completely empty messages.
+
+_generate_new(draft_text) — 4 steps:
+  1. extractor.extract_requirements(text, api_key) → structured checklist
+  2. generator.generate_proposal(text, api_key, checklist) → proposal dict
+  3. builder.build_pptx(proposal_data, output_path) → saves PPTX
+  4. _write_review_file(proposal_data, req_data, name) → saves review .txt
+
+_patch_existing(correction):
+  1. generator.patch_proposal(current_data, correction, api_key) → updated dict
+  2. Deletes old PPTX file
+  3. builder.build_pptx(updated_data, new_path) → saves new PPTX
+
+Output locations:
+  PPTX files → C:\Users\PC\Downloads\Proposals_2026\completed\Zawad_<title>.pptx
+  Review txt  → C:\Users\PC\Downloads\Proposals_2026\review_needed\Review_<title>.txt
+  Log file    → C:\Users\PC\Desktop\ZawadProposalAgent\chatbot.log
+
+================================================================
+GENERATOR.PY — GEMINI API CALLS
+================================================================
+
+Models tried in order (with fallback on rate limit):
+  ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash']
+
+MAX_RETRIES = 3
+RETRY_WAITS = [30, 60, 90] seconds between retries
+
+generate_proposal(draft_text, api_key, checklist=None):
+  - max_output_tokens = 16000
+  - temperature = 0.4
+  - Injects RAG context (past proposals) and checklist into prompt
+  - Returns complete proposal dict after fixing pricing math
+
+patch_proposal(current_data, correction, api_key):
+  - max_output_tokens = 16000
+  - temperature = 0.2
+  - Sends current full JSON + correction instruction → updated JSON
+
+_extract_json(text) — ROBUST JSON EXTRACTION:
+  1. Direct json.loads() attempt
+  2. Strip ```json ... ``` markdown fences (greedy regex)
+  3. Brace-matching to find outermost { } block
+  Handles Gemini sometimes wrapping responses in markdown code fences.
+
+_fix_pricing(proposal):
+  Python always recalculates pricing (never trusts Gemini for math):
+  - item.total_omr = quantity × rate_omr
+  - subtotal_omr = sum of all item totals
+  - vat_omr = subtotal × 0.05
+  - grand_total_omr = subtotal + vat
+
+ZAWAD RATE CARD (used in system prompt):
+  Delivery day: 4,000 OMR
+  Design day: 2,500 OMR
+  Coaching/hour: 120 OMR
+  Group facilitation/hour: 150 OMR
+  Report: 1,000 OMR
+  Assessment center/candidate: 481 OMR
+  VAT: 5%
+  Performance bond: 5%
+  Proposal validity: 90 days
+
+COMPLIANCE REQUIREMENTS (Oman government tenders):
+  - VAT 5% must be included in pricing
+  - Procurement fee 1.2% (Circular 13/2024) must be mentioned
+  - 5% performance bond must be mentioned in commitments
+  - 90-day proposal validity
+  - Vision 2040 alignment must be mentioned
+
+================================================================
+BUILDER.PY — POWERPOINT GENERATOR
+================================================================
+
+Slide dimensions: W=33.87cm, H=19.05cm (widescreen 16:9)
+Colors:
+  NAVY  = RGB(0x0A, 0x26, 0x47)  — dark navy blue (primary background)
+  MINT  = RGB(0x2E, 0xC4, 0xB6)  — mint/teal (accent, logo)
+  TEAL  = RGB(0x0E, 0x7C, 0x86)  — darker teal (text accents)
+  WHITE = RGB(0xFF, 0xFF, 0xFF)
+  LGRAY = RGB(0xF5, 0xF7, 0xFA)
+  SLATE = RGB(0x1B, 0x2A, 0x3A)
+  MGRAY = RGB(0xDE, 0xE3, 0xEB)
+  MGREEN= RGB(0xC9, 0xEF, 0xEA)
+
+Assets folder: C:\Users\PC\Desktop\ZawadProposalAgent\assets\
+  zawad_logo.png    — Zawad company logo
+  riyadah_card.png  — Partner/Riyadah card image
+  partner_logos.png — Partner logos strip
+
+build_pptx(data, output_path) — main function that builds 28-35 slides:
+  Slide 1:  Cover (_slide_cover) — program title, client, category
+  Slide 2:  Table of Contents (_slide_toc)
+  Slide 3:  Cover Letter (_slide_cover_letter)
+  Slide 4:  About Zawad / company overview (_slide_about_zawad)
+  Slide 5:  Key Stats (_slide_key_stats)
+  Slide 6:  About Riyadah (_slide_about_riyadah) — uses riyadah_card.png
+  Slide 7:  Requirements Understanding (_slide_requirements)
+  Slide 8:  Key Message (_slide_key_message)
+  Slide 9:  Commitments (_slide_commitments_page)
+  Slide 10: Methodology (_slide_methodology)
+  Slide 11: Context Boxes (_slide_context_boxes)
+  Slide 12-N: Workplan days (_slide_workplan_day × per day)
+  Slide N+1: Expected Outputs (_slide_outputs)
+  Slide N+2: Team (_slide_team)
+  Slide N+3: Track Record Highlight (_slide_track_highlight)
+  Slide N+4: Past Projects Table (_slide_past_projects)
+  Slide N+5: Innovation (_slide_innovation)
+  Slide N+6: Innovation Points (_slide_innovation_points)
+  Slide N+7: Risk Management (_slide_risks)
+  Slide N+8: Pricing Table (_slide_pricing)
+  Slide N+9: Commitments Grid (_slide_commitments_grid)
+  Slide N+10: Thank You / Closing (_slide_closing)
+
+CRITICAL FIXES APPLIED (DO NOT REVERT):
+
+1. _tf_clear() — clears text frame and fixes OOXML bodyPr:
+   def _tf_clear(tf):
+       for _ in range(len(tf.paragraphs) - 1):
+           p = tf.paragraphs[-1]._p
+           p.getparent().remove(p)
+       tf.paragraphs[0].clear()
+       bodyPr = tf._txBody.bodyPr
+       for tag in (qn('a:spAutoFit'), qn('a:normAutofit'), qn('a:lstAutofit')):
+           el = bodyPr.find(tag)
+           if el is not None:
+               bodyPr.remove(el)
+       if bodyPr.find(qn('a:noAutofit')) is None:
+           etree.SubElement(bodyPr, qn('a:noAutofit'))
+   WHY: Having both <a:normAutofit> AND <a:noAutofit> in same bodyPr is an
+   OOXML schema violation that causes PowerPoint to show "problem with content"
+   repair dialog every time the file is opened. After repair, some slides go blank.
+
+2. Post-processing sweep in build_pptx() before prs.save():
+   ns_a = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+   for slide in prs.slides:
+       for el in slide._element.iter('{%s}bodyPr' % ns_a):
+           norm = el.find('{%s}normAutofit' % ns_a)
+           no   = el.find('{%s}noAutofit'   % ns_a)
+           if norm is not None and no is not None:
+               el.remove(norm)
+   prs.save(output_path)
+   WHY: Safety net to catch any remaining normAutofit+noAutofit conflicts.
+
+3. _AR regex — use \u escapes NOT literal Arabic chars:
+   _AR = '[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]'
+   WHY: Literal Arabic characters in regex can cause encoding issues.
+
+4. _fix_spacing() — inserts space between digits and Arabic text:
+   text = re.sub('([0-9])(' + _AR + ')', r'\1 \2', text)
+   text = re.sub('(' + _AR + ')([0-9])', r'\1 \2', text)
+   (also handles brackets ()[])
+
+5. Alignment rules:
+   - Cover slide (title, category): PP_ALIGN.CENTER
+   - Thank You / Closing slide: PP_ALIGN.CENTER
+   - TOC title: PP_ALIGN.RIGHT (NOT center)
+   - All other slides: PP_ALIGN.RIGHT (RTL Arabic standard)
+
+6. Commitments slide fallback defaults when AI returns <3 items:
+   defaults = [6 default Arabic commitment strings]
+   if len(lines) < 3:
+       lines = lines + defaults[len(lines):]
+
+================================================================
+EXTRACTOR.PY — REQUIREMENTS EXTRACTION
+================================================================
+
+extract_requirements(draft_text, api_key):
+  Uses Gemini (gemini-3.5-flash-lite) to extract from tender text:
+  - client_name, tender_number, program_type
+  - participants, duration_days, budget_ceiling_omr
+  - mandatory_requirements (list)
+  - compliance_items (list)
+  - preferred_requirements (list)
+  - red_flags (list — anything that causes automatic disqualification)
+
+format_checklist(req_dict) → formatted Arabic string injected into generator
+requirements_summary(req_dict) → one-line summary for chatbot UI
+
+================================================================
+REVIEWER.PY — DUAL ADVERSARIAL REVIEW
+================================================================
+
+review_proposal(proposal_data, draft_text, api_key, requirements):
+  Two-pass review:
+  Pass A (Attacker): pretends to be client's rejection committee,
+                     finds every weakness, gap, compliance miss
+  Pass B (Defender): reads attacks, filters false alarms,
+                     produces final actionable report
+
+  Returns: full Arabic review report string with sections:
+  ## ملخص تنفيذي (score / 10, ready or not)
+  ## ✅ ما هو ناجح
+  ## ⚠️ يحتاج تحسين
+  ## ❌ مشاكل حرجة
+  ## 📋 تغطية المتطلبات
+  ## 🎯 أولويات الإصلاح
+
+extract_critical_issues(review_report) → list of up to 3 critical issues
+
+NOTE: reviewer.py is NOT called in the chatbot flow currently.
+      chatbot.py has its own inline review (_write_review_file function)
+      that does Python-only scoring (no extra Gemini calls).
+
+================================================================
+READER.PY — FILE TEXT EXTRACTION
+================================================================
+
+read_file(path) → auto-detects format, returns plain text string
+  .pdf  → pymupdf (page by page)
+  .docx → python-docx (paragraphs + tables)
+  .pptx → python-pptx (all text from all shapes)
+  .txt  → tries utf-8, utf-8-sig, cp1256, latin-1
+
+================================================================
+CHAT_UI/INDEX.HTML — FRONTEND
+================================================================
+
+Single HTML file. RTL Arabic. Language: Arabic.
+Served at http://localhost:5050/
+
+Key behaviors:
+  - Loads Marked.js from cdnjs for markdown rendering in bot messages
+  - File upload: user clicks 📎 → files STAGE (shown as badges) → user presses Send
+  - Multiple files can be staged before sending
+  - Files are uploaded one by one via POST /api/upload
+  - After all files upload, a text message is sent via POST /api/chat
+  - If no text typed but file(s) uploaded, sends "تم رفع الملفات. يرجى المتابعة."
+  - Enter key sends message (Shift+Enter for newline)
+  - "عرض جديد +" button resets the session
+
+State:
+  isWaiting — bool, prevents double-sending
+  stagedFiles — array of File objects waiting to be uploaded
+
+API calls timeout: 720,000ms (12 minutes) to handle long Gemini calls
+
+================================================================
+PROPOSAL JSON STRUCTURE
+================================================================
+
+The JSON Gemini returns (and builder.py consumes) has this shape:
+
+{
+  "program_title": "Arabic title",
+  "program_title_en": "English title",
+  "client_name": "Arabic client name",
+  "client_name_en": "English client name",
+  "client_website": "www.client.gov.om",
+  "tender_number": "tender ref or ''",
+  "program_category": "البرنامج التدريبي",
+  "presenter": "زواد للتطوير والاستشارات",
+  "submitted_to": "مقدَّم إلى: ...",
+  "format": "A",
+  "stats": {
+    "participants": 20,
+    "days": 5,
+    "location": "مقر الجهة",
+    "month": "يتم التنسيق مع الجهة",
+    "duration": "5 أيام تدريبية",
+    "language": "العربية",
+    "currency": "ريال عماني",
+    "validity": "90 يوماً",
+    "components": "ورش عمل وحالات دراسية",
+    "prep_period": "3 أسابيع من الإسناد",
+    "deliverables": "تقرير نهائي شامل"
+  },
+  "key_stats": [
+    {"number": "20", "label": "مشاركاً"},
+    ...
+  ],
+  "commitments_grid": [
+    {"icon": "👥", "title": "الفئة المستهدفة", "value": "20 مشاركاً"},
+    ...6 items...
+  ],
+  "cover_letter": "formal Arabic letter, 3 paragraphs",
+  "sections": {
+    "key_message": "value proposition in 2 sentences",
+    "commitments": "commitments paragraph",
+    "commitments_list": ["item 1", "item 2", ..., "item 5+"],
+    "company_overview": "about Zawad, 4+ lines",
+    "requirements_understanding": "understanding of tender, 4+ lines",
+    "methodology": "training methodology, 5+ lines",
+    "quality_commitment": "quality assurance paragraph",
+    "workplan": [
+      {"day": 1, "title": "Day title", "activities": ["act1", "act2", "act3", "act4"]},
+      ...one per training day...
+    ],
+    "team": [
+      {"name": "د. غسان المعمري", "role": "مدير المشروع", "experience": "..."},
+      {"name": "...", "role": "...", "experience": "..."},
+      ...minimum 2 members, Dr. Ghasan must be first...
+    ],
+    "expected_outputs": [
+      {"number": "01", "title": "...", "description": "..."},
+      ...5 outputs...
+    ],
+    "track_record_highlight": "2 paragraphs about past success",
+    "innovation": "innovation/value-add text, 4+ lines",
+    "innovation_points": [
+      {"icon": "🌐", "title": "خبرة حكومية واسعة", "description": "..."},
+      {"icon": "🎯", "title": "محتوى محلي مخصص", "description": "..."},
+      {"icon": "📊", "title": "سجل نجاح حافل", "description": "..."},
+      {"icon": "💡", "title": "منهجية تفاعلية", "description": "..."},
+      {"icon": "✅", "title": "التزام بالجودة", "description": "..."},
+      {"icon": "⭐", "title": "تقييمات متميزة", "description": "..."}
+    ],
+    "risks": [
+      {"risk": "...", "probability": "متوسطة", "impact": "عالي",
+       "preventive": "...", "contingency": "..."},
+      ...minimum 5 risks...
+    ],
+    "pricing": {
+      "line_items": [
+        {"description": "...", "quantity": N, "unit": "يوم", "rate_omr": RATE, "total_omr": TOTAL},
+        ...
+      ],
+      "subtotal_omr": N,
+      "vat_omr": N * 0.05,
+      "grand_total_omr": N * 1.05
+    }
+  }
+}
+
+================================================================
+KNOWN ISSUES AND BUGS (as of 2026-10-28)
+================================================================
+
+FIXED:
+  ✅ "Problem with content" repair dialog on PPTX open
+     — Caused by normAutofit+noAutofit conflict in bodyPr XML
+     — Fixed in _tf_clear() + post-processing sweep
+
+  ✅ JSON parsing failure when Gemini wraps response in ```json fences
+     — Fixed in _extract_json() with greedy fence stripping + brace matching
+
+  ✅ Token limit too small (patch was 4096 → truncated JSON)
+     — Fixed: max_output_tokens=16000 for both generate and patch
+
+  ✅ run_chatbot.bat syntax error "... was unexpected at this time"
+     — Fixed: removed invalid for/f loop, uses simple taskkill
+
+  ✅ 40-character minimum on chat input rejected file-only workflows
+     — Fixed: now only blocks completely empty messages
+
+POTENTIAL REMAINING ISSUES:
+  ⚠️ If Gemini returns incomplete JSON (cuts off mid-response), the brace
+     matcher in _extract_json will fail → "Cannot parse JSON" error
+     → Need to retry with lower token output or split the prompt
+
+  ⚠️ The /api/upload endpoint calls _generate_new() which returns a Flask
+     Response, but the upload handler calls result.get_json() on it.
+     If the server is restarted mid-upload, this can fail silently.
+
+  ⚠️ Arabic/English spacing: _fix_spacing() runs on every text run via _para().
+     Some edge cases with mixed RTL/LTR text may still show characters joined.
+
+  ⚠️ After uploading a file, the chatbot also sends a chat message
+     "تم رفع الملفات. يرجى المتابعة." — this can trigger a second
+     _generate_new() call if mode is still 'await_draft'. The upload already
+     called _generate_new(), so the chat call will generate ANOTHER proposal.
+     → TODO: after a successful file upload sets mode='ready', the subsequent
+       chat message should be handled as a patch, not a new generation.
+
+================================================================
+ZAWAD COMPANY INFO (hardcoded in system prompt)
+================================================================
+
+Company: زواد للتطوير والاستشارات (Zawad for Development and Consulting)
+Email: ghasan@zawad.om
+Phone: +968 9777 3444
+Project Manager (always in proposals): د. غسان المعمري (Dr. Ghasan Al-Ma'amari)
+
+Past Projects (for track record slides):
+  - برنامج تطوير القيادات (فريق 5) — Sultani Academy — 119,000 OMR — 25 participants
+  - برنامج إتقان للتقييم — Sultani Academy — 109,000 OMR — 200 participants
+  - البرنامج التنفيذي للإدارة المحلية — Sultani Academy — 83,000 OMR
+  - برنامج إمكان 3 — Ministry of Civil Service — 81,900 OMR — 120 participants
+  - تمكين القيادة — Oman Aluminium — 43,000 OMR — 32 participants
+  (and 7 more in PAST_PROJECTS list in builder.py)
+
+================================================================
+HOW TO DEBUG
+================================================================
+
+1. Check the log: C:\Users\PC\Desktop\ZawadProposalAgent\chatbot.log
+   (tail it in real-time or open after an error)
+
+2. The server window (run_chatbot.bat CMD window) shows all log lines live.
+
+3. Common errors:
+   "Cannot parse JSON" → Gemini returned non-JSON or truncated response
+   "Gemini failed after 3 attempts" → rate limit or network issue
+   "problem with content" dialog in PowerPoint → OOXML normAutofit conflict
+   Server not responding → Old process still running; restart run_chatbot.bat
+   Module not found → run: pip install -r requirements.txt
+
+4. To test proposal generation manually (without chatbot):
+   Open a CMD in C:\Users\PC\Desktop\ZawadProposalAgent\
+   Run: py -c "from generator import generate_proposal; from builder import build_pptx; import json; data = generate_proposal('نص تجريبي للمناقصة', 'YOUR_API_KEY'); build_pptx(data, 'test_output.pptx')"
+
+================================================================
+END OF BRIEFING
+================================================================

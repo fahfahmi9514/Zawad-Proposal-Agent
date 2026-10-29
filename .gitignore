@@ -1,0 +1,23 @@
+# API key and personal config - NEVER commit this
+config/config.json
+
+# Embedded Python runtime - too large for GitHub (each laptop keeps its own)
+python_runtime/
+
+# Generated outputs
+outputs/
+*.pptx
+
+# Logs and cache
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# RAG index (auto-generated)
+rag_index.json
+
+# OS files
+.DS_Store
+Thumbs.db
