@@ -185,6 +185,50 @@
   }
   #new-btn:hover { border-color: var(--mint); color: var(--teal); }
 
+  /* ── Mic button ── */
+  #mic-btn {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: transparent; border: 1.5px solid var(--border);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .2s; color: var(--muted);
+  }
+  #mic-btn:hover { border-color: #ef4444; color: #ef4444; }
+  #mic-btn.recording {
+    background: #ef4444; border-color: #ef4444; color: white;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+    50%      { box-shadow: 0 0 0 9px rgba(239,68,68,0); }
+  }
+  #mic-btn svg { width: 20px; height: 20px; }
+
+  /* ── Language toggle ── */
+  #lang-btn {
+    font-size: 10px; font-weight: 700; padding: 0 7px; height: 22px;
+    border-radius: 5px; border: 1.5px solid var(--border);
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-family: inherit; align-self: center; flex-shrink: 0;
+    transition: all .2s; letter-spacing: 0.05em;
+  }
+  #lang-btn:hover { border-color: var(--mint); color: var(--teal); }
+  #lang-btn.active { border-color: var(--mint); color: var(--teal); background: #e8f9f8; }
+
+  /* ── Interim voice text strip ── */
+  #voice-strip {
+    position: fixed; bottom: 78px; left: 0; right: 0;
+    padding: 6px 18px;
+    font-size: 12px; color: #ef4444; font-style: italic;
+    background: #fff5f5; border-top: 1px solid #fecaca;
+    display: none; align-items: center; gap: 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #voice-strip.visible { display: flex; }
+  #voice-strip .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+
   /* scrollbar */
   #chat::-webkit-scrollbar { width: 6px; }
   #chat::-webkit-scrollbar-track { background: transparent; }
@@ -207,6 +251,10 @@
 <div id="chat"></div>
 
 <input type="file" id="file-input" accept=".pdf,.docx,.pptx,.txt" multiple onchange="stageFiles(this)">
+<div id="voice-strip">
+  <span class="pulse-dot"></span>
+  <span id="voice-interim-text">جاري الاستماع...</span>
+</div>
 <div id="staged-area"></div>
 <div id="input-bar">
   <button id="new-btn" title="بدء عرض جديد" onclick="newProposal()">+ عرض جديد</button>
@@ -218,6 +266,15 @@
   <textarea id="msg-input" rows="1"
     placeholder="الصق نص المناقصة هنا، أو أرفق ملف PDF/Word بالزر 📎، أو اكتب تعديلاً..."
     oninput="autoResize(this)"></textarea>
+  <button id="lang-btn" title="تبديل اللغة: عربي / إنجليزي" onclick="toggleLang()">AR</button>
+  <button id="mic-btn" title="تشغيل الميكروفون" onclick="toggleMic()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </button>
   <button id="send-btn" onclick="sendMessage()" title="إرسال">
     <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
   </button>
@@ -398,6 +455,96 @@ function scrollBottom() {
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ── Voice input (Web Speech API) ──────────────────────────────────
+let recognition  = null;
+let isListening  = false;
+let langCode     = 'ar-OM';
+const micBtn     = document.getElementById('mic-btn');
+const langBtn    = document.getElementById('lang-btn');
+const voiceStrip = document.getElementById('voice-strip');
+const voiceText  = document.getElementById('voice-interim-text');
+
+function toggleLang() {
+  langCode = langCode.startsWith('ar') ? 'en-US' : 'ar-OM';
+  langBtn.textContent = langCode.startsWith('ar') ? 'AR' : 'EN';
+  langBtn.classList.toggle('active', langCode === 'en-US');
+  if (recognition) recognition.lang = langCode;
+}
+
+function toggleMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    appendBot('⚠️ **الميكروفون غير مدعوم في هذا المتصفح.**\nيرجى استخدام **Google Chrome** للحصول على هذه الميزة.');
+    return;
+  }
+  isListening ? stopListening() : startListening(SR);
+}
+
+function startListening(SR) {
+  recognition = new SR();
+  recognition.continuous      = true;
+  recognition.interimResults  = true;
+  recognition.lang            = langCode;
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add('recording');
+    micBtn.title = 'اضغط لإيقاف التسجيل';
+    voiceStrip.classList.add('visible');
+    // Push chat and staged up to make room for the strip
+    adjustChatBottom();
+  };
+
+  recognition.onresult = (e) => {
+    let interim = '', finalText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      e.results[i].isFinal ? (finalText += t) : (interim += t);
+    }
+    if (finalText) {
+      const cur = input.value;
+      input.value = (cur ? cur + ' ' : '') + finalText.trim();
+      autoResize(input);
+    }
+    voiceText.textContent = interim || 'جاري الاستماع...';
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      appendBot('🎤 **لا يمكن الوصول إلى الميكروفون.**\nيرجى السماح بالوصول في إعدادات المتصفح (الشريط الأعلى بجوار الرابط)، ثم أعد المحاولة.');
+      stopListening();
+    }
+    // no-speech / audio-capture / network → onend will restart automatically
+  };
+
+  recognition.onend = () => {
+    // Auto-restart as long as the user hasn't manually stopped
+    if (isListening) {
+      try { recognition.start(); } catch(_) {}
+    }
+  };
+
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  micBtn.classList.remove('recording');
+  micBtn.title = 'تشغيل الميكروفون';
+  voiceStrip.classList.remove('visible');
+  if (recognition) { try { recognition.stop(); } catch(_) {} recognition = null; }
+  adjustChatBottom();
+  input.focus();
+}
+
+function adjustChatBottom() {
+  const chatEl    = document.getElementById('chat');
+  const stagedEl  = document.getElementById('staged-area');
+  const stripH    = voiceStrip.classList.contains('visible') ? voiceStrip.offsetHeight : 0;
+  const stagedH   = stagedEl.offsetHeight;
+  chatEl.style.bottom = (78 + stagedH + stripH) + 'px';
 }
 </script>
 </body>
