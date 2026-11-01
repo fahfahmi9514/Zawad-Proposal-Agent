@@ -67,9 +67,10 @@ session = {
     'proposal_data': None,
     'draft_text':    None,
     'pptx_path':     None,
-    'req_data':      {},   # requirements extracted from tender — kept for re-review after edits
+    'req_data':      None, # requirements extracted from tender — reused in _generate_new
     'staged_texts':  [],   # file texts waiting to be combined into next generation
     'pending_draft': None, # tender text held while waiting for user confirmation
+    'user_context':  '',   # user's Q&A answers (team/partner choices) before generation
     'mode':          'await_draft' if _api_key else 'await_key',
 }
 
@@ -197,16 +198,21 @@ def chat():
 
         if any(kw in msg_lower for kw in YES_KWS):
             draft = session.get('pending_draft') or user_msg
+            user_ctx = session.get('user_context', '')
             session['pending_draft'] = None
+            session['user_context'] = ''
             session['mode'] = 'await_draft'
-            return _generate_new(draft)
+            return _generate_new(draft, user_ctx)
 
         if any(kw in msg_lower for kw in NO_KWS):
             session['pending_draft'] = None
+            session['user_context'] = ''
             session['mode'] = 'await_draft'
             return jsonify({'reply': '🔄 تم الإلغاء. أرفق المناقصة من جديد عندما تكون جاهزاً.', 'mode': 'await_draft'})
 
-        # User asked another question — answer it and ask again
+        # User is answering Q&A questions — accumulate their answers in session
+        prev_ctx = session.get('user_context', '')
+        session['user_context'] = (prev_ctx + '\n' + user_msg).strip() if prev_ctx else user_msg
         return _answer_about_tender(user_msg)
 
     # ── Correction / refinement ───────────────────────────────────────────────
@@ -218,6 +224,8 @@ def chat():
             session['draft_text'] = None
             session['pptx_path'] = None
             session['staged_texts'] = []
+            session['user_context'] = ''
+            session['req_data'] = None
             return jsonify({'reply': '🔄 حسناً، نبدأ من جديد.\n\nالصق نص المناقصة الجديدة.', 'mode': 'await_draft'})
         return _patch_existing(user_msg)
 
@@ -522,35 +530,83 @@ def _format_req_summary(req: dict) -> str:
     return '\n'.join(lines) if lines else '_لا متطلبات محددة._'
 
 
-def _generate_targeted_questions(tender_text: str) -> str:
-    """Ask Gemini to generate 3-5 targeted questions the user must answer before building."""
+def _generate_requirements_briefing(req: dict) -> str:
+    """Build a briefing showing what the tender says, then ask only what the agent can't know."""
+    lines = ['## 📋 ما قرأناه في المناقصة:\n']
+
+    if req.get('client_name'):
+        lines.append(f'**الجهة:** {req["client_name"]}')
+    if req.get('program_type'):
+        lines.append(f'**نوع العمل:** {req["program_type"]}')
+    if req.get('project_phase') and req['project_phase'] != 'غير محدد':
+        lines.append(f'**المرحلة المطلوبة:** {req["project_phase"]}')
+    if req.get('participants') and str(req['participants']) != 'غير محدد':
+        lines.append(f'**عدد المشاركين:** {req["participants"]}')
+    if req.get('cohort_gender') and req['cohort_gender'] != 'غير محدد':
+        g_label = {'female': 'إناث فقط', 'male': 'ذكور فقط', 'mixed': 'مختلط'}.get(
+            req['cohort_gender'], req['cohort_gender'])
+        lines.append(f'**جنس المشاركين:** {g_label}')
+    if req.get('duration_days') and str(req['duration_days']) != 'غير محدد':
+        lines.append(f'**المدة:** {req["duration_days"]} يوم')
+    if req.get('delivery_location') and req['delivery_location'] != 'غير محدد':
+        lines.append(f'**مكان التنفيذ:** {req["delivery_location"]}')
+    if req.get('delivery_mode') and req['delivery_mode'] != 'غير محدد':
+        lines.append(f'**طريقة التقديم:** {req["delivery_mode"]}')
+    budget = req.get('budget_ceiling_omr', 0)
     try:
-        from google import genai
-        from google.genai import types as _types
-        client = genai.Client(api_key=session['api_key'])
-        prompt = (
-            'أنت مساعد تحليل مناقصات حكومية عُمانية.\n'
-            'اقرأ هذه المناقصة وحدّد 3 إلى 5 أسئلة يجب على صاحب العرض الإجابة عليها '
-            'قبل كتابة العرض، بناءً على متطلبات خاصة بهذه المناقصة تحديداً.\n'
-            'ركّز على معلومات لا يمكن للنظام افتراضها أو اختراعها مثل:\n'
-            '- أسماء المدربين/المدربات المتاحين (خاصة إن اشترطت المناقصة إناثاً)\n'
-            '- الشهادات والمؤهلات المحددة المطلوبة\n'
-            '- أي اشتراطات خاصة بالجنس أو الخبرة أو الجنسية\n'
-            '- تفاصيل المتحدث في جلسة الحوار إن وُجدت\n'
-            '- أي قيود أو شروط خاصة بهذه الجهة\n\n'
-            'اكتب الأسئلة بصيغة مباشرة وواضحة باللغة العربية، واحدة في كل سطر.\n\n'
-            f'=== المناقصة ===\n{tender_text[:6000]}'
-        )
-        resp = client.models.generate_content(
-            model='gemini-3.5-flash-lite',
-            contents=prompt,
-            config=_types.GenerateContentConfig(temperature=0.3, max_output_tokens=500)
-        )
-        questions = resp.text.strip()
-        return f'❓ **أسئلة يجب الإجابة عليها قبل بناء العرض:**\n\n{questions}'
-    except Exception as e:
-        logger.warning(f'Targeted questions failed: {e}')
-        return '❓ **يرجى تزويدنا بأي معلومات إضافية عن فريق التنفيذ أو المتطلبات الخاصة قبل البدء.**'
+        if budget and int(budget) > 0:
+            lines.append(f'**سقف الميزانية:** {budget} ريال عماني')
+    except (ValueError, TypeError):
+        pass
+    if req.get('coaching_type') and req['coaching_type'] != 'غير مذكور':
+        lines.append(f'**نوع التدريب:** {req["coaching_type"]}')
+
+    if req.get('team_requirements'):
+        lines.append('\n**متطلبات الفريق كما وردت في المناقصة:**')
+        for r in req['team_requirements']:
+            lines.append(f'  • {r}')
+
+    if req.get('curriculum_units'):
+        lines.append('\n**وحدات المنهج المذكورة في المناقصة:**')
+        for u in req['curriculum_units'][:8]:
+            lines.append(f'  • {u}')
+
+    if req.get('submission_documents'):
+        lines.append('\n**وثائق التقديم المطلوبة:**')
+        for d in req['submission_documents'][:6]:
+            lines.append(f'  • {d}')
+
+    if req.get('red_flags'):
+        lines.append('\n⚠️ **نقاط حرجة — لا تُهمل:**')
+        for f in req['red_flags'][:3]:
+            lines.append(f'  ⚠ {f}')
+
+    lines.append('\n---\n')
+    lines.append('## ❓ أحتاج منك إجابة على سؤالين فقط:\n')
+
+    # Question 1: Team — specific to what tender requires
+    team_reqs = req.get('team_requirements', [])
+    gender = req.get('cohort_gender', 'غير محدد')
+    gender_note = ''
+    if gender == 'female':
+        gender_note = ' **(المناقصة تطلب مدربات إناث)**'
+    elif gender == 'male':
+        gender_note = ' **(المناقصة تطلب مدربين ذكور)**'
+
+    lines.append(f'**1. من الفريق الذي سيُنفّذ هذا المشروع؟{gender_note}**')
+    if team_reqs:
+        req_summary = '، '.join(team_reqs[:2])
+        lines.append(f'   _(المناقصة تشترط: {req_summary})_')
+    lines.append('   أو اكتب **"اختار أنت"** وسيختار النظام الأنسب من مكتبة الفريق تلقائياً.\n')
+
+    # Question 2: Partners — never assume
+    lines.append('**2. هل هناك شركاء خارجيون لهذا المشروع؟**')
+    lines.append('   اكتب اسم الشريك ودوره — أو اكتب **"لا يوجد"**.\n')
+
+    lines.append('---')
+    lines.append('💬 بعد إجابتك، اكتب **نعم** أو **يلا** لبدء إنشاء العرض.')
+
+    return '\n'.join(lines)
 
 
 def _answer_about_tender(question: str):
@@ -586,7 +642,7 @@ def _answer_about_tender(question: str):
 
 
 def _handle_with_question(full_content: str, typed_question: str):
-    """Extract requirements, generate targeted questions, optionally answer user's question."""
+    """Extract requirements, show what tender says, then ask only what the agent can't know."""
     from extractor import extract_requirements
     req = {}
     try:
@@ -595,8 +651,7 @@ def _handle_with_question(full_content: str, typed_question: str):
     except Exception as e:
         logger.warning(f'Pre-extract failed: {e}')
 
-    summary = _format_req_summary(req)
-    targeted_qs = _generate_targeted_questions(full_content)
+    briefing = _generate_requirements_briefing(req)
 
     answer_block = ''
     if typed_question:
@@ -615,23 +670,15 @@ def _handle_with_question(full_content: str, typed_question: str):
                 contents=prompt,
                 config=_types.GenerateContentConfig(temperature=0.2, max_output_tokens=800)
             )
-            answer_block = resp.text.strip() + '\n\n---\n\n'
+            answer_block = f'**🔍 إجابة على سؤالك:**\n{resp.text.strip()}\n\n---\n\n'
         except Exception as e:
             logger.warning(f'Q&A failed: {e}')
 
-    reply = (
-        f'{answer_block}'
-        f'📋 **ملخص متطلبات المناقصة:**\n{summary}\n\n'
-        f'---\n\n'
-        f'{targeted_qs}\n\n'
-        f'---\n'
-        f'💬 أجب على الأسئلة أعلاه ثم اكتب **نعم** أو **يلا** لبدء الإنشاء، '
-        f'أو اطرح أي سؤال آخر عن المناقصة.'
-    )
+    reply = f'{answer_block}{briefing}'
     return jsonify({'reply': reply, 'mode': 'await_confirm'})
 
 
-def _generate_new(draft_text: str):
+def _generate_new(draft_text: str, user_context: str = ''):
     try:
         COMPLETED_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -641,11 +688,12 @@ def _generate_new(draft_text: str):
 
         # ── Step 1: Extract requirements ──────────────────────────────────────
         logger.info('Chatbot: extracting requirements...')
-        req_data = {}
+        req_data = session.get('req_data') or {}
         checklist_text = ''
         req_line = ''
         try:
-            req_data = extract_requirements(draft_text, session['api_key'])
+            if not req_data:
+                req_data = extract_requirements(draft_text, session['api_key'])
             checklist_text = format_checklist(req_data)
             summary = requirements_summary(req_data)
             if summary:
@@ -656,8 +704,12 @@ def _generate_new(draft_text: str):
 
         # ── Step 2: Generate proposal ─────────────────────────────────────────
         logger.info('Chatbot: generating proposal...')
+        # Inject user's Q&A answers into the prompt so generator knows team/partner choices
+        user_ctx_block = ''
+        if user_context:
+            user_ctx_block = f'\n\n=== معلومات أضافها المستخدم (الفريق / الشركاء) ===\n{user_context}\n=== نهاية المعلومات ===\n'
         proposal_data = generate_proposal(
-            draft_text, session['api_key'],
+            draft_text + user_ctx_block, session['api_key'],
             checklist=checklist_text or None
         )
         logger.info(f'Generated: {proposal_data.get("program_title")}')

@@ -23,22 +23,37 @@ MODEL = 'gemini-3.5-flash-lite'
 
 EXTRACTOR_SYSTEM = """أنت محلل مناقصات خبير ومتخصص في تحليل وثائق المناقصات الحكومية العُمانية.
 
-مهمتك الوحيدة: استخرج كل متطلب وقيد وشرط مذكور في نص المناقصة.
+مهمتك: اقرأ نص المناقصة كاملاً كلمة بكلمة واستخرج كل متطلب وقيد وشرط.
+لا تفترض شيئاً — فقط ما هو مذكور صراحةً في النص.
 
 أعد JSON فقط بهذا الهيكل — لا تضف أي نص خارج JSON:
 {
   "client_name": "اسم الجهة الطالبة كما وردت بالضبط",
   "tender_number": "رقم المناقصة كما ورد أو 'غير مذكور'",
-  "program_type": "نوع العمل المطلوب (برنامج تدريبي / مركز تقييم / استشارة / ...)",
+  "program_type": "نوع العمل المطلوب (برنامج تدريبي / مركز تقييم / استشارة / مشروع تطوير / ...)",
+  "project_phase": "مرحلة المشروع المطلوبة (تصميم كامل / تنفيذ / تصميم وتنفيذ / تقييم / غير محدد)",
   "participants": "عدد المشاركين كرقم أو 'غير محدد'",
+  "cohort_gender": "female إذا طُلبت مشاركات إناث — male إذا ذكور — mixed أو 'غير محدد'",
   "duration_days": "عدد الأيام كرقم أو 'غير محدد'",
+  "delivery_location": "مكان التنفيذ كما ورد في المناقصة أو 'غير محدد'",
+  "delivery_mode": "حضوري / عن بُعد / هجين / غير محدد",
   "budget_ceiling_omr": "سقف الميزانية بالأرقام فقط أو 0 إن لم يُذكر",
+  "team_requirements": [
+    "كل متطلب خاص بالفريق: الجنس، سنوات الخبرة، التخصص، الشهادات، الجنسية — كما ورد بالضبط"
+  ],
+  "coaching_type": "فردي / جماعي / كلاهما / غير مذكور",
+  "curriculum_units": [
+    "كل وحدة أو موضوع تعليمي مذكور بالاسم في المناقصة"
+  ],
+  "submission_documents": [
+    "كل وثيقة أو نموذج مطلوب تقديمه مع العرض (نموذج ج، نموذج ب، شهادة وزارة العمل، تقرير الملاءة، ...)"
+  ],
+  "pricing_format": "وصف هيكل التسعير المطلوب إن كان محدداً في المناقصة — أو 'غير محدد'",
   "mandatory_requirements": [
     "كل متطلب إلزامي واضح يجب أن يغطيه العرض"
   ],
   "compliance_items": [
-    "ضريبة القيمة المضافة 5%",
-    "أي التزام قانوني أو مالي مذكور في وثيقة المناقصة"
+    "ضريبة القيمة المضافة، الضمان، الصلاحية، وأي التزام قانوني أو مالي مذكور"
   ],
   "preferred_requirements": [
     "أي متطلب مفضل أو إضافي غير إلزامي"
@@ -58,13 +73,13 @@ def extract_requirements(draft_text: str, api_key: str) -> dict:
     cfg = types.GenerateContentConfig(
         system_instruction=EXTRACTOR_SYSTEM,
         temperature=0.0,
-        max_output_tokens=512,
+        max_output_tokens=2048,
     )
 
-    prompt = f"""استخرج جميع المتطلبات من نص المناقصة التالية:
+    prompt = f"""اقرأ نص المناقصة التالية كاملاً كلمة بكلمة واستخرج جميع المتطلبات:
 
 ---
-{draft_text[:2000]}
+{draft_text[:10000]}
 ---
 
 أعد JSON فقط."""
@@ -100,13 +115,41 @@ def format_checklist(req: dict) -> str:
         lines.append(f'• رقم المناقصة: {req["tender_number"]}')
     if req.get('program_type'):
         lines.append(f'• نوع البرنامج: {req["program_type"]}')
+    if req.get('project_phase') and req['project_phase'] != 'غير محدد':
+        lines.append(f'• مرحلة المشروع: {req["project_phase"]}')
     if req.get('participants') and req['participants'] != 'غير محدد':
         lines.append(f'• عدد المشاركين: {req["participants"]}')
+    if req.get('cohort_gender') and req['cohort_gender'] not in ('غير محدد', 'mixed'):
+        lines.append(f'• جنس المشاركين: {req["cohort_gender"]}')
     if req.get('duration_days') and req['duration_days'] != 'غير محدد':
         lines.append(f'• المدة: {req["duration_days"]} يوم')
+    if req.get('delivery_location') and req['delivery_location'] != 'غير محدد':
+        lines.append(f'• مكان التنفيذ: {req["delivery_location"]}')
+    if req.get('delivery_mode') and req['delivery_mode'] != 'غير محدد':
+        lines.append(f'• طريقة التقديم: {req["delivery_mode"]}')
     budget = req.get('budget_ceiling_omr', 0)
     if budget and int(budget) > 0:
         lines.append(f'• سقف الميزانية: {budget} ريال عماني — لا يجوز تجاوزه')
+    if req.get('coaching_type') and req['coaching_type'] != 'غير مذكور':
+        lines.append(f'• نوع التدريب/الكوتشينج: {req["coaching_type"]}')
+
+    if req.get('team_requirements'):
+        lines.append('\nمتطلبات الفريق — يجب مطابقتها بدقة:')
+        for r in req['team_requirements']:
+            lines.append(f'  ✦ {r}')
+
+    if req.get('curriculum_units'):
+        lines.append('\nوحدات المنهج المطلوبة — لا تخترع غيرها:')
+        for u in req['curriculum_units']:
+            lines.append(f'  ✦ {u}')
+
+    if req.get('submission_documents'):
+        lines.append('\nوثائق التقديم المطلوبة:')
+        for d in req['submission_documents']:
+            lines.append(f'  ✦ {d}')
+
+    if req.get('pricing_format') and req['pricing_format'] != 'غير محدد':
+        lines.append(f'\nهيكل التسعير المطلوب: {req["pricing_format"]}')
 
     if req.get('mandatory_requirements'):
         lines.append('\nالمتطلبات الإلزامية — يجب تغطية كل متطلب بوضوح في العرض:')
