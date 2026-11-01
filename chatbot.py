@@ -70,7 +70,8 @@ session = {
     'req_data':      None, # requirements extracted from tender — reused in _generate_new
     'staged_texts':  [],   # file texts waiting to be combined into next generation
     'pending_draft': None, # tender text held while waiting for user confirmation
-    'user_context':  '',   # user's Q&A answers (team/partner choices) before generation
+    'user_context':    '',   # user's Q&A answers (team/partner choices) before generation
+    'client_logo_path': None, # path to client logo extracted from tender PDF
     'mode':          'await_draft' if _api_key else 'await_key',
 }
 
@@ -104,8 +105,19 @@ def upload():
             f.save(tmp_path)
 
         sys.path.insert(0, str(BASE_DIR))
-        from reader import read_file
+        from reader import read_file, extract_client_logo
         text = read_file(tmp_path, api_key=session.get('api_key', ''))
+
+        # Extract client logo from PDF (if it's a PDF)
+        if suffix == '.pdf' and not session.get('client_logo_path'):
+            try:
+                logo = extract_client_logo(str(tmp_path))
+                if logo:
+                    session['client_logo_path'] = logo
+                    logger.info(f'Client logo extracted: {logo}')
+            except Exception as e:
+                logger.warning(f'Logo extraction skipped: {e}')
+
         tmp_path.unlink(missing_ok=True)
 
         if not text or len(text.strip()) < 30:
@@ -226,6 +238,7 @@ def chat():
             session['staged_texts'] = []
             session['user_context'] = ''
             session['req_data'] = None
+            session['client_logo_path'] = None
             return jsonify({'reply': '🔄 حسناً، نبدأ من جديد.\n\nالصق نص المناقصة الجديدة.', 'mode': 'await_draft'})
         return _patch_existing(user_msg)
 
@@ -713,6 +726,11 @@ def _generate_new(draft_text: str, user_context: str = ''):
             checklist=checklist_text or None
         )
         logger.info(f'Generated: {proposal_data.get("program_title")}')
+
+        # Inject PDF-extracted client logo path into proposal data for builder
+        client_logo = session.get('client_logo_path') or ''
+        if client_logo:
+            proposal_data['client_logo_path'] = client_logo
 
         # ── Step 2b: Check JSON structure — collect warnings, never block ────
         validation_warnings = _validate_proposal(proposal_data)

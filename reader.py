@@ -89,6 +89,104 @@ def _read_pdf_with_gemini(path: str, api_key: str) -> str:
     return result
 
 
+def extract_client_logo(pdf_path: str, save_dir: str = '') -> str:
+    """
+    Extract the client's logo from a tender PDF cover page.
+
+    Strategy:
+    1. Look for a natural logo image (not full-page, not tiny dots).
+    2. If only full-page background images are found, crop the top-center
+       portion where logos typically appear.
+
+    Returns absolute path to saved PNG, or '' if nothing usable found.
+    """
+    import pymupdf
+    import tempfile
+
+    out_dir = Path(save_dir) if save_dir else Path(tempfile.gettempdir()) / 'zawad_logos'
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_stem = ''.join(c for c in Path(pdf_path).stem if c.isalnum() or c in '_-')[:30]
+    logo_path = out_dir / f'{safe_stem}_client_logo.png'
+
+    if logo_path.exists():
+        return str(logo_path)
+
+    doc = pymupdf.open(pdf_path)
+    best_natural  = None   # standalone logo image
+    best_fullpage = None   # full-page cover image (fallback — will crop)
+
+    seen_xrefs = set()
+
+    for page_idx in range(min(3, len(doc))):
+        page = doc[page_idx]
+        for img_info in page.get_images(full=True):
+            xref = img_info[0]
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
+            try:
+                img = doc.extract_image(xref)
+            except Exception:
+                continue
+
+            w, h = img.get('width', 0), img.get('height', 0)
+            if w < 40 or h < 40:
+                continue    # invisible dots or color fills
+            aspect = w / h if h else 0
+
+            is_fullpage = (h > 500 and 0.5 < aspect < 1.5)
+            is_banner   = (aspect > 3.5)  # wide strips — not logos
+            is_tiny     = (w < 80 or h < 60)
+
+            if is_fullpage:
+                if best_fullpage is None:
+                    best_fullpage = img['image']
+            elif not is_banner and not is_tiny:
+                # Proportions match a logo (roughly square or moderate width)
+                if best_natural is None:
+                    best_natural = img['image']
+
+    doc.close()
+
+    if best_natural:
+        logo_path.write_bytes(best_natural)
+        logger.info(f'Extracted standalone logo from PDF → {logo_path}')
+        return str(logo_path)
+
+    if best_fullpage:
+        # Crop top-center portion of cover page — logos sit there in Omani tenders
+        cropped = _crop_logo_from_cover(best_fullpage)
+        if cropped:
+            logo_path.write_bytes(cropped)
+            logger.info(f'Cropped logo from cover page → {logo_path}')
+            return str(logo_path)
+
+    logger.info('No client logo image found in PDF')
+    return ''
+
+
+def _crop_logo_from_cover(img_bytes: bytes) -> bytes:
+    """Crop the top-center 20% of a cover page image to isolate the logo."""
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
+        w, h = img.size
+        # Crop: top 22%, horizontal center 60%
+        x0 = int(w * 0.20)
+        x1 = int(w * 0.80)
+        y0 = 0
+        y1 = int(h * 0.22)
+        cropped = img.crop((x0, y0, x1, y1))
+        buf = io.BytesIO()
+        cropped.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f'Logo crop failed: {e}')
+        return b''
+
+
 def read_docx(path: str) -> str:
     from docx import Document
     doc = Document(path)

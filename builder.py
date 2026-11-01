@@ -1961,9 +1961,14 @@ def _slide_closing(prs, data, client_logo):
 # ═══════════════════════════════════════════════════════════════════
 
 def _fetch_client_logo(data: dict) -> Optional[str]:
-    """Try to download client logo. Returns local path if successful, else None."""
+    """Return client logo path. Priority: PDF-extracted > cached file > Clearbit download."""
     import urllib.request
     import tempfile
+
+    # 1. Best source: logo extracted directly from the tender PDF by reader.py
+    pdf_logo = data.get('client_logo_path', '')
+    if pdf_logo and os.path.exists(pdf_logo):
+        return pdf_logo
 
     client_name = data.get('client_name', '')
     client_website = data.get('client_website', '')
@@ -1975,6 +1980,7 @@ def _fetch_client_logo(data: dict) -> Optional[str]:
     safe_name = ''.join(c for c in client_name if c.isalnum() or c in ' _-')[:40]
     logo_path = save_dir / f'{safe_name}.png'
 
+    # 2. Already downloaded in a previous run
     if logo_path.exists():
         return str(logo_path)
 
