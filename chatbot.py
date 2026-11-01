@@ -358,31 +358,49 @@ def _write_review_file(proposal_data: dict, req_data: dict, safe_name: str):
             warned.append(('ضمان الجودة والحوكمة', 'القسم أقل من 3 أسطر — أضف تفاصيل نموذج القياس (كيركباتريك أو ما يعادله).'))
             score -= 0.5
 
-        # Pricing math
+        # Pricing math — use actual vat_rate from proposal, handle float totals
         try:
-            expected_total = round(float(subtotal) * 1.05)
-            actual_total = int(str(total).replace(',', ''))
-            if abs(expected_total - actual_total) <= 5:
-                passed.append(('الدقة الحسابية', f'المجموع الفرعي {subtotal:,} + ضريبة 5% ({vat:,}) = الإجمالي {total} ر.ع ✓'))
+            vat_rate_actual = float(pricing.get('vat_rate', 0.05))
+            expected_total = round(float(subtotal) * (1 + vat_rate_actual), 3)
+            actual_total   = round(float(str(total).replace(',', '')), 3)
+            vat_pct = int(round(vat_rate_actual * 100))
+            if abs(expected_total - actual_total) <= 1.0:
+                passed.append(('الدقة الحسابية', f'المجموع الفرعي {subtotal:,} + ضريبة {vat_pct}% ({vat:,}) = الإجمالي {total} ر.ع ✓'))
             else:
-                failed.append(('الدقة الحسابية', f'خطأ في الحساب: {subtotal:,} × 1.05 = {expected_total:,} لكن الإجمالي المسجل {total}.'))
+                failed.append(('الدقة الحسابية', f'خطأ في الحساب: {subtotal:,} × {1+vat_rate_actual} = {expected_total:,} لكن الإجمالي المسجل {total}.'))
                 score -= 2.0
         except Exception:
             warned.append(('التحقق الحسابي', 'تعذّر التحقق من صحة الأرقام — راجع التسعير يدوياً.'))
 
         # Compliance — 1.2% procurement fee
-        if '1.2' in full_text or 'تعميم' in full_text or 'المشتريات' in full_text:
+        # Check proposal JSON text AND the financial line items
+        line_items_text = str(sections.get('pricing', {}).get('line_items', []))
+        has_procurement_fee = (
+            '1.2' in full_text or
+            'تعميم' in full_text or
+            'المشتريات' in full_text or
+            'حماية المنافسة' in full_text or
+            '1.2' in line_items_text
+        )
+        if has_procurement_fee:
             passed.append(('رسوم المشتريات 1.2% (تعميم 13/2024)', 'مذكورة في العرض.'))
         else:
-            failed.append(('رسوم حماية المنافسة 1.2%', 'غير مذكورة — إغفالها يُعرّض العرض للاستبعاد (تعميم وزارة المالية 13/2024).'))
-            score -= 1.5
-
-        # Compliance — 5% bond
-        if 'ضمان' in full_text and ('5%' in full_text or '٥٪' in full_text):
-            passed.append(('ضمان حسن التنفيذ 5%', 'مذكور في الالتزامات.'))
-        else:
-            failed.append(('ضمان حسن التنفيذ 5%', 'لم يُنص عليه صراحة في الإقرارات — يجب إضافته.'))
+            warned.append(('رسوم حماية المنافسة 1.2%', 'غير مذكورة صراحة في بنود التسعير — تحقق من إدراجها في النموذج المالي (تعميم وزارة المالية 13/2024).'))
             score -= 0.5
+
+        # Compliance — performance bond
+        # Only flag as failure if tender explicitly requires a bond (bond_rate not null)
+        bond_rate_val = proposal_data.get('bond_rate')
+        if bond_rate_val is not None:
+            bond_pct = int(round(float(bond_rate_val) * 100))
+            if 'ضمان' in full_text:
+                passed.append((f'ضمان حسن التنفيذ {bond_pct}%', 'مذكور في الالتزامات.'))
+            else:
+                failed.append((f'ضمان حسن التنفيذ {bond_pct}%', f'المناقصة تطلب ضمان {bond_pct}% ولم يُنص عليه في الإقرارات.'))
+                score -= 1.0
+        else:
+            # No bond required or not specified — skip check
+            passed.append(('ضمان حسن التنفيذ', 'غير مطلوب في هذه المناقصة أو لم يُحدد.'))
 
         # Budget ceiling
         budget = req_data.get('budget_ceiling_omr', 0) if req_data else 0
