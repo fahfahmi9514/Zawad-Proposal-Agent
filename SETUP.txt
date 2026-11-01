@@ -1,0 +1,77 @@
+====================================================
+  ZAWAD PROPOSAL AGENT — First-Time Setup Guide
+====================================================
+
+Follow these steps ONE TIME only. After that, just
+double-click "run_chatbot.bat" to start the agent.
+
+----------------------------------------------------
+STEP 1 — Unzip the folder
+----------------------------------------------------
+Right-click the ZIP file you received → "Extract All"
+Choose a location (e.g. your Desktop or C:\Zawad)
+Open the extracted folder.
+
+----------------------------------------------------
+STEP 2 — Get your free Gemini API key
+----------------------------------------------------
+1. Open Google Chrome
+2. Go to: https://aistudio.google.com
+3. Sign in with your Google account
+4. Click "Get API Key" (top left)
+5. Click "Create API Key"
+6. Copy the key (it looks like: AIzaSy...)
+
+----------------------------------------------------
+STEP 3 — Add your API key
+----------------------------------------------------
+Inside the Zawad folder, open the "config" folder.
+You will see a file called "config.json".
+
+If the file does NOT exist, create it:
+  - Right-click inside the config folder
+  - New → Text Document
+  - Rename it exactly to: config.json
+  - Open it with Notepad
+
+Paste this inside (replace YOUR_KEY_HERE with your key):
+
+{
+  "gemini_api_key": "YOUR_KEY_HERE"
+}
+
+Save and close the file.
+
+----------------------------------------------------
+STEP 4 — Start the agent
+----------------------------------------------------
+Go back to the main Zawad folder.
+Double-click "run_chatbot.bat"
+
+A black window will open — keep it open (don't close it).
+After a few seconds, open Google Chrome and go to:
+
+   http://localhost:5050
+
+The agent will open. You're ready to use it!
+
+----------------------------------------------------
+HOW TO GET UPDATES (when Fahmi sends a new version)
+----------------------------------------------------
+Instead of downloading a new ZIP, just:
+  1. Make sure you are connected to the internet
+  2. Double-click "update.bat"
+  3. It will update automatically and restart
+
+That's it — no re-downloading needed for future updates.
+
+----------------------------------------------------
+IMPORTANT NOTES
+----------------------------------------------------
+- Always use Google Chrome (not Edge, not Firefox)
+- Keep the black "run_chatbot.bat" window open while using
+- Close it when you are done
+- Your API key is FREE — no payment needed
+- If anything goes wrong, contact Fahmi
+
+====================================================
