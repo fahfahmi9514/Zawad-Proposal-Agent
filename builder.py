@@ -798,6 +798,71 @@ def _slide_company(prs, data, client_logo):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# SLIDE: WHY US (fixed — same every tender)
+# ═══════════════════════════════════════════════════════════════════
+
+_WHY_US_POINTS = [
+    ('01', 'خبرة حكومية واسعة',
+     'خبرة عميقة في العمل مع القطاع الحكومي العُماني، وفهم عميق لتحديات وتطلعات الجهات الحكومية.'),
+    ('02', 'محتوى محلي مخصص',
+     'محتوى تدريبي مصمم خصيصًا ليلائم البيئة العُمانية والثقافة المحلية واحتياجات الجهة.'),
+    ('03', 'سجل نجاح حافل',
+     'تاريخ طويل من البرامج التدريبية الناجحة والنتائج الملموسة مع كبرى المؤسسات الحكومية والخاصة.'),
+    ('04', 'تقييمات متميزة',
+     'الحصول باستمرار على تقييمات عالية وإشادة من المتدربين السابقين في مختلف البرامج.'),
+    ('05', 'الالتزام بالجودة',
+     'التزام تام بأعلى معايير الجودة في التدريب والتنظيم وتقديم الخدمات اللوجستية.'),
+    ('06', 'منهجية تفاعلية',
+     'اعتماد أساليب تدريب تفاعلية وعملية أثبتت فعاليتها في ترسيخ المهارات وتغيير السلوك.'),
+]
+
+
+def _slide_why_us(prs, client_logo):
+    slide = _blank_slide(prs)
+    _rect(slide, 0, 0, W, H, LGRAY)
+    tf3 = _header(slide, 'لماذا نحن الخيار الأمثل؟', '', client_logo)
+    _divider(slide)
+    _para(tf3, 'ستة محاور تميز تجعلنا الشريك الأنسب', 15, color=MINT, align=PP_ALIGN.RIGHT)
+
+    cols = 3
+    gap_x, gap_y = 0.3, 0.3
+    bw = (W - 0.8 - gap_x * (cols - 1)) / cols
+    bh = (H - 3.4 - gap_y) / 2
+    start_y = 3.2
+
+    for i, (num, title, desc) in enumerate(_WHY_US_POINTS):
+        row = i // cols
+        col = cols - 1 - (i % cols)      # RTL
+        bx = 0.4 + col * (bw + gap_x)
+        by = start_y + row * (bh + gap_y)
+
+        _rect(slide, bx, by, bw, bh, WHITE, rounded=True, radius=0.10, border=MGRAY)
+
+        # Teal number badge — top-right corner
+        badge_sz = 0.55
+        _rect(slide, bx + bw - badge_sz - 0.14, by + 0.14,
+              badge_sz, badge_sz, TEAL, rounded=True, radius=0.08)
+        nb = _txbox(slide, bx + bw - badge_sz - 0.14, by + 0.14, badge_sz, badge_sz)
+        nb.text_frame.word_wrap = False
+        _tf_clear(nb.text_frame)
+        _para(nb.text_frame, num, 11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+        # Title
+        tx = _txbox(slide, bx + 0.2, by + 0.22, bw - badge_sz - 0.5, 0.7)
+        tf = tx.text_frame
+        tf.word_wrap = True
+        _tf_clear(tf)
+        _para(tf, title, 14, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
+
+        # Description
+        tx2 = _txbox(slide, bx + 0.2, by + 1.05, bw - 0.4, bh - 1.2)
+        tf2 = tx2.text_frame
+        tf2.word_wrap = True
+        _tf_clear(tf2)
+        _para(tf2, desc, 12, color=SLATE, align=PP_ALIGN.RIGHT)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # SLIDE 6: PARTNER LOGOS
 # ═══════════════════════════════════════════════════════════════════
 
@@ -2109,6 +2174,8 @@ def build_pptx(data: dict, output_path: str):
     _slide_governance(prs, data, client_logo)             # 09
     _slide_risk_matrix(prs, data, client_logo)            # 09
     _slide_innovation(prs, data, client_logo)             # 10
+    _slide_why_us(prs, client_logo)                       # fixed
+    _slide_clients(prs, client_logo)                      # fixed
     _slide_track_record(prs, data, client_logo)           # 11
     _slide_financial_summary(prs, data, client_logo)      # 12
     _slide_financial_table(prs, data, client_logo)        # 12
