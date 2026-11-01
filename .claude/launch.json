@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "zawad-agent",
+      "runtimeExecutable": "python_runtime\\python.exe",
+      "runtimeArgs": ["app.py"],
+      "port": 5050,
+      "url": "http://localhost:5050"
+    }
+  ]
+}

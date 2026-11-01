@@ -20,9 +20,25 @@ from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-MODELS      = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-1.5-flash']
-MAX_RETRIES = 3
-RETRY_WAITS = [30, 60, 90]
+MODELS      = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
+MAX_RETRIES = 2
+RETRY_WAITS = [30, 60]
+
+# gemini-3.5-flash-lite caps at 8192 output tokens — large proposals truncate
+_MODEL_MAX_TOKENS = {
+    'gemini-3.8-flash':      16000,
+    'gemini-3.5-flash-lite':  8192,
+}
+
+# Compact system instruction appended when using the lite fallback model
+_COMPACT_SUFFIX = """
+=== وضع الإيجاز (مطلوب) ===
+نظراً لقيود النموذج، اكتب بإيجاز شديد:
+- كل حقل نصي: جملتان فقط (لا أكثر)
+- workplan: 3 مراحل كحد أقصى، جملة واحدة لكل مرحلة
+- team: عضوان فقط (د. غسان + عضو واحد)
+- الهدف: JSON كامل البنية وصحيح، وإن كان موجزاً
+- لا تحذف أي مفتاح من البنية، فقط اجعل القيم أقصر"""
 
 SYSTEM_PROMPT = """أنت خبير في كتابة عروض المناقصات الحكومية العُمانية للشركات الاستشارية.
 مهمتك: إنشاء عرض فني ومالي احترافي كامل لشركة زواد للتطوير والاستشارات.
@@ -442,23 +458,23 @@ def generate_proposal(draft_text: str, api_key: str,
 - استخدم السير الذاتية من مكتبة الفريق لملء قسم team بمعلومات حقيقية
 - أعد JSON فقط بدون أي نص خارجه"""
 
-    client = genai.Client(api_key=api_key, http_options={'timeout': 120000})
-    cfg = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        temperature=0.4,
-        max_output_tokens=16000,
-    )
-
     last_exc = None
     for attempt in range(MAX_RETRIES):
         model = MODELS[min(attempt, len(MODELS) - 1)]
+        max_tokens = _MODEL_MAX_TOKENS.get(model, 8192)
+        sys_prompt = SYSTEM_PROMPT + (_COMPACT_SUFFIX if model == 'gemini-3.5-flash-lite' else '')
+        cfg = types.GenerateContentConfig(
+            system_instruction=sys_prompt,
+            temperature=0.4,
+            max_output_tokens=max_tokens,
+        )
         try:
             if attempt > 0:
                 wait = RETRY_WAITS[attempt - 1]
                 logger.info(f'  Gemini retry {attempt + 1} in {wait}s (model: {model})...')
                 time.sleep(wait)
-                client = genai.Client(api_key=api_key, http_options={'timeout': 120000})
-            logger.info(f'Generator: calling Gemini attempt {attempt + 1} with {model}...')
+            client = genai.Client(api_key=api_key, http_options={'timeout': 120000})
+            logger.info(f'Generator: calling Gemini attempt {attempt + 1} with {model} (max_tokens={max_tokens})...')
             raw = client.models.generate_content(
                 model=model, contents=user_prompt, config=cfg
             ).text.strip()
@@ -469,11 +485,12 @@ def generate_proposal(draft_text: str, api_key: str,
         except Exception as exc:
             last_exc = exc
             err_str = str(exc).lower()
-            logger.warning(f'  Attempt {attempt + 1} ({model}) failed: {exc}')
+            logger.warning(f'  Attempt {attempt + 1} ({model}) failed: {exc!s:.200}')
             retryable = ('429' in err_str or 'resource_exhausted' in err_str or
                          '504' in err_str or 'deadline_exceeded' in err_str or
                          '503' in err_str or 'unavailable' in err_str or
-                         'timeout' in err_str)
+                         'timeout' in err_str or
+                         'cannot parse json' in err_str)  # truncated output → try next model
             if not retryable:
                 break
 

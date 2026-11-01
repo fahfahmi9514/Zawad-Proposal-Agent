@@ -3,6 +3,7 @@ config/config.json
 
 # Embedded Python runtime - too large for GitHub (each laptop keeps its own)
 python_runtime/
+python_runtime.zip
 
 # Generated outputs
 outputs/
