@@ -79,7 +79,7 @@ def extract_requirements(draft_text: str, api_key: str) -> dict:
     prompt = f"""اقرأ نص المناقصة التالية كاملاً كلمة بكلمة واستخرج جميع المتطلبات:
 
 ---
-{draft_text[:10000]}
+{draft_text}
 ---
 
 أعد JSON فقط."""

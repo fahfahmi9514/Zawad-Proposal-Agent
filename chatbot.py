@@ -618,7 +618,7 @@ def _answer_about_tender(question: str):
         prompt = (
             'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
             'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات غير موجودة.\n\n'
-            f'=== الوثيقة ===\n{tender_text[:8000]}\n\n'
+            f'=== الوثيقة ===\n{tender_text}\n\n'
             f'=== سؤال المستخدم ===\n{question}'
         )
         from google.genai import types as _types
@@ -662,7 +662,7 @@ def _handle_with_question(full_content: str, typed_question: str):
             prompt = (
                 'أنت مساعد تحليل مناقصات. أجب على سؤال المستخدم بشكل مباشر ومختصر '
                 'بناءً على محتوى الوثيقة فقط. لا تخترع معلومات.\n\n'
-                f'=== الوثيقة ===\n{full_content[:8000]}\n\n'
+                f'=== الوثيقة ===\n{full_content}\n\n'
                 f'=== سؤال المستخدم ===\n{typed_question}'
             )
             resp = client.models.generate_content(

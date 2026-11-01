@@ -380,7 +380,7 @@ def generate_proposal(draft_text: str, api_key: str,
 
     user_prompt = f"""الوثائق المرفقة (اقرأ كل وثيقة بالكامل وافهم دورها):
 ---
-{draft_text[:12000]}
+{draft_text}
 ---
 {checklist_section}{rag_section}{cv_section}
 

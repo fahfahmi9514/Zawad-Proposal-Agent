@@ -138,9 +138,9 @@ def review_proposal(proposal_data: dict, draft_text: str,
 
     # ── Pass A: Attacker ──────────────────────────────────────────────────────
     logger.info('  Reviewer Pass A (Attacker)...')
-    attack_prompt = f"""المسودة الأصلية (أول 2000 حرف):
+    attack_prompt = f"""المسودة الأصلية:
 ---
-{draft_text[:2000]}
+{draft_text}
 ---
 {req_section}
 
