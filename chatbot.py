@@ -105,7 +105,7 @@ def upload():
 
         sys.path.insert(0, str(BASE_DIR))
         from reader import read_file
-        text = read_file(tmp_path)
+        text = read_file(tmp_path, api_key=session.get('api_key', ''))
         tmp_path.unlink(missing_ok=True)
 
         if not text or len(text.strip()) < 30:
