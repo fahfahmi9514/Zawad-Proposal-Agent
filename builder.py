@@ -735,6 +735,23 @@ def _slide_commitments_grid(prs, data, client_logo):
 # SLIDE 5: ABOUT ZAWAD — WITH RIYADAH CARD
 # ═══════════════════════════════════════════════════════════════════
 
+_COMPANY_P1 = (
+    'شركة زواد للتطوير والاستشارات هي شركة رائدة في مجال تقديم حلول التدريب والاستشارات '
+    'المبتكرة في سلطنة عُمان، نعتمد على فريق متخصص من الخبراء المحليين والإقليميين لتوفير '
+    'حلول مخصصة تلبي احتياجات عملائنا بدقة وكفاءة، مما يضمن تحقيق نتائج استثنائية ومستدامة.'
+)
+_COMPANY_P2 = (
+    'نتميّز بخدمات متنوعة تغطي مختلف الصناعات والقطاعات، مع تركيز خاص على تطوير الأداء '
+    'المؤسسي، وتدريب الكفاءات، وإدارة المخاطر، وبناء أطر الحوكمة. رؤيتنا هي أن نكون '
+    'شريككم الموثوق الذي يساهم في تعزيز نجاحكم وتحقيق أهدافكم الاستراتيجية بكل احترافية وابتكار.'
+)
+_COMPANY_PILLARS = [
+    (NAVY, 'الابتكار', 'حلول تدريبية مبتكرة ومتطورة'),
+    (TEAL, 'التميز',   'أعلى معايير الجودة في التنفيذ'),
+    (NAVY, 'التخصص',  'حلول تدريب متخصصة لكل قطاع'),
+]
+
+
 def _slide_company(prs, data, client_logo):
     slide = _blank_slide(prs)
     _rect(slide, 0, 0, W, H, LGRAY)
@@ -742,49 +759,42 @@ def _slide_company(prs, data, client_logo):
     _divider(slide)
     _para(tf3, 'الشريك القائد  ·  سلطنة عُمان', 15, color=MINT, align=PP_ALIGN.RIGHT)
 
-    _img(slide, RIYADAH_CARD, 0.5, 3.0, 5.5, 6.3)
-
-    overview = data.get('sections', {}).get('company_overview',
-        'شركة زواد للتطوير والاستشارات هي شركة رائدة في مجال تقديم حلول التدريب والاستشارات المبتكرة في سلطنة عُمان.')
-
-    tx = _txbox(slide, 6.5, 3.0, W - 7.0, 7.2)
+    # Left: fixed company description paragraphs
+    content_y = 3.2
+    content_h = 9.8
+    tx = _txbox(slide, 0.6, content_y, 18.5, content_h)
     tf = tx.text_frame
     tf.word_wrap = True
     _tf_clear(tf)
-    paras = overview.split('\n') if '\n' in overview else [overview]
-    for para in paras:
-        if para.strip():
-            _para(tf, para.strip(), 14, color=SLATE, align=PP_ALIGN.RIGHT)
+    _para(tf, _COMPANY_P1, 14, color=SLATE, align=PP_ALIGN.RIGHT)
+    p = tf.add_paragraph()
+    p.space_before = Pt(10)
+    _para(tf, _COMPANY_P2, 14, color=SLATE, align=PP_ALIGN.RIGHT)
 
-    _rect(slide, 0.5, 9.6, W - 1.0, 1.5, MINT, rounded=True, radius=0.1)
-    tx2 = _txbox(slide, 0.5, 9.6, W - 1.0, 1.5)
-    tf2 = tx2.text_frame
-    tf2.word_wrap = False
-    tf2.vertical_anchor = MSO_ANCHOR.MIDDLE
-    _tf_clear(tf2)
-    _para(tf2, '✔  حاصلة على بطاقة تسجيل ريادة — هيئة تنمية المؤسسات الصغيرة والمتوسطة  ✔',
-          15, bold=True, color=WHITE, align=PP_ALIGN.RIGHT)
+    # Right: Riyada card image
+    _img(slide, RIYADAH_CARD, 20.0, content_y, 12.5, content_h)
 
-    pillars = [
-        ('\U0001f4a1', 'الابتكار', 'حلول تدريبية مبتكرة ومتطورة'),
-        ('★', 'التميز', 'أعلى معايير الجودة في التنفيذ'),
-        ('\U0001f3af', 'التخصص', 'حلول تدريب متخصصة لكل قطاع'),
-    ]
-    pw = (W - 1.5) / 3
-    for i, (icon, name, desc) in enumerate(pillars):
-        px = 0.5 + (2 - i) * (pw + 0.25)
-        _rect(slide, px, 11.4, pw, 4.0, WHITE, rounded=True, radius=0.1, border=MGRAY)
-        _icon_circle(slide, px + pw / 2, 12.6, 0.65, icon, 18, MINT)
-        tx3 = _txbox(slide, px + 0.2, 13.6, pw - 0.4, 1.0)
-        tf3 = tx3.text_frame
-        tf3.word_wrap = True
-        _tf_clear(tf3)
-        _para(tf3, name, 15, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
-        tx4 = _txbox(slide, px + 0.2, 14.7, pw - 0.4, 0.6)
-        tf4 = tx4.text_frame
-        tf4.word_wrap = True
-        _tf_clear(tf4)
-        _para(tf4, desc, 12, color=SLATE, align=PP_ALIGN.RIGHT)
+    # Bottom: solid colored tiles (navy / teal / navy), full width, no icons
+    tile_y = 13.6
+    tile_h = H - tile_y
+    pw = W / 3
+    for i, (color, name, desc) in enumerate(_COMPANY_PILLARS):
+        px = (2 - i) * pw          # RTL: right=0, center=1, left=2
+        _rect(slide, px, tile_y, pw, tile_h, color)
+        # Title
+        tt = _txbox(slide, px + 0.4, tile_y + 0.5, pw - 0.8, 1.4)
+        tf_t = tt.text_frame
+        tf_t.word_wrap = True
+        tf_t.vertical_anchor = MSO_ANCHOR.MIDDLE
+        _tf_clear(tf_t)
+        _para(tf_t, name, 18, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+        # Description
+        td = _txbox(slide, px + 0.4, tile_y + 2.1, pw - 0.8, 1.5)
+        tf_d = td.text_frame
+        tf_d.word_wrap = True
+        tf_d.vertical_anchor = MSO_ANCHOR.TOP
+        _tf_clear(tf_d)
+        _para(tf_d, desc, 13, color=WHITE, align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════════════
