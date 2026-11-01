@@ -18,7 +18,7 @@ from google import genai
 from google.genai import types
 
 logger = logging.getLogger(__name__)
-MODEL = 'gemini-3.8-flash'
+MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
 
 # ── Attacker prompt ──────────────────────────────────────────────────────────
 
@@ -97,23 +97,26 @@ def _math_note(proposal_data: dict) -> str:
 
 def _call_gemini(system: str, prompt: str, api_key: str,
                  max_tokens: int = 2048, temperature: float = 0.2) -> str:
-    client = genai.Client(api_key=api_key, http_options={'timeout': 90000})
     cfg = types.GenerateContentConfig(
         system_instruction=system,
         temperature=temperature,
         max_output_tokens=max_tokens,
     )
     for attempt in range(4):
+        model = MODELS[min(attempt, len(MODELS) - 1)]
         try:
             if attempt > 0:
                 wait = 30 * attempt
-                logger.info(f'  Reviewer retry {attempt + 1} in {wait}s...')
+                logger.info(f'  Reviewer retry {attempt + 1} in {wait}s (model: {model})...')
                 time.sleep(wait)
-            r = client.models.generate_content(model=MODEL, contents=prompt, config=cfg)
+            client = genai.Client(api_key=api_key, http_options={'timeout': 90000})
+            r = client.models.generate_content(model=model, contents=prompt, config=cfg)
             return r.text.strip()
         except Exception as exc:
-            logger.warning(f'  Reviewer attempt {attempt + 1} failed: {exc}')
-            if '503' not in str(exc) and 'UNAVAILABLE' not in str(exc):
+            logger.warning(f'  Reviewer attempt {attempt + 1} ({model}) failed: {exc}')
+            err = str(exc)
+            retryable = any(c in err for c in ('503', 'UNAVAILABLE', '504', 'DEADLINE', '429', 'EXHAUSTED'))
+            if not retryable:
                 break
     return ''
 

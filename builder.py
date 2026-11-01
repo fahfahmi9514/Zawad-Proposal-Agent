@@ -75,12 +75,12 @@ PAST_PROJECTS = [
     ("إعداد المدربين", "الصندوق الاجتماعي للتنمية", "5,810", "25", "داخل", "تدريب"),
 ]
 
-# Hardcoded Zawad company-level stats — never AI-generated, always accurate
+# Hardcoded Zawad company-level stats — verified from portfolio, never AI-generated
 ZAWAD_STATS = [
-    ("94%",   "رضا المستفيدين"),
-    ("95%",   "أداء المدربين"),
-    ("+12",   "مشروعاً مكتملاً"),
-    ("+650K", "ريال قيمة العقود"),
+    ("+18",   "مشروعاً مكتملاً"),
+    ("+630K", "ريال عُماني قيمة العقود"),
+    ("+8",    "جهات حكومية وخاصة"),
+    ("2019",  "تأسست زواد"),
 ]
 
 
