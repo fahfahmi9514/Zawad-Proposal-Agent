@@ -323,31 +323,55 @@ def _get_rag(draft_text: str, api_key: str) -> str:
         return ''
 
 
-def _load_team_cvs() -> str:
-    """Load team CV library and return a compact summary for the prompt."""
+def _load_team_cvs(tender_domain: str = '') -> str:
+    """
+    Load team CV library. When tender_domain is given, each member's
+    specializations and certifications are filtered to only what overlaps
+    with that domain — so Gemini sees relevant-hat data only.
+    """
     try:
         import os
         cv_path = os.path.join(os.path.dirname(__file__), 'config', 'team_cvs.json')
         with open(cv_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         members = data.get('members', [])
+
+        # Split domain into searchable tokens (Arabic words > 2 chars)
+        domain_tokens = set()
+        if tender_domain:
+            for tok in tender_domain.replace('/', ' ').replace('،', ' ').replace(',', ' ').split():
+                if len(tok) > 2:
+                    domain_tokens.add(tok)
+
+        def _relevant(items: list, fallback: list) -> list:
+            """Return items that mention any domain token; fall back to first 3."""
+            if not domain_tokens:
+                return items[:4]
+            matched = [x for x in items if any(t in x for t in domain_tokens)]
+            return matched[:4] if matched else fallback[:3]
+
         lines = ['=== مكتبة السير الذاتية لفريق زواد — اختر من هذه الأسماء لقسم الفريق ===']
         for m in members:
-            name = m.get('name_ar', m.get('name_en', ''))
-            role = m.get('current_role', '')
-            years = m.get('years_experience', '')
-            specs = ' | '.join(m.get('specializations', [])[:4])
-            certs = ', '.join(m.get('certifications', [])[:4])
-            gender = m.get('gender', '')
-            bio = m.get('bio_ar', '')
-            suitable = ' | '.join(m.get('suitable_for', [])[:4])
+            name    = m.get('name_ar', m.get('name_en', ''))
+            role    = m.get('current_role', '')
+            years   = m.get('years_experience', '')
+            gender  = m.get('gender', '')
+            bio     = m.get('bio_ar', '')
+            all_specs   = m.get('specializations', [])
+            all_certs   = m.get('certifications', [])
+            all_suitable = m.get('suitable_for', [])
+
+            rel_specs   = _relevant(all_specs,   all_specs)
+            rel_certs   = _relevant(all_certs,   all_certs)
+            rel_suitable = _relevant(all_suitable, all_suitable)
+
             lines.append(
                 f'\n[{name}] ({gender})\n'
                 f'  الدور: {role}\n'
                 f'  الخبرة: {years} سنة\n'
-                f'  التخصصات: {specs}\n'
-                f'  الشهادات: {certs or "—"}\n'
-                f'  مناسب لـ: {suitable}\n'
+                f'  التخصصات ذات الصلة: {" | ".join(rel_specs)}\n'
+                f'  الشهادات ذات الصلة: {", ".join(rel_certs) or "—"}\n'
+                f'  مناسب لـ: {" | ".join(rel_suitable)}\n'
                 f'  نبذة: {bio[:300]}'
             )
         return '\n'.join(lines)
@@ -357,18 +381,30 @@ def _load_team_cvs() -> str:
 
 
 def generate_proposal(draft_text: str, api_key: str,
-                      checklist: str = None) -> dict:
+                      checklist: str = None,
+                      req_data: dict = None) -> dict:
     """
     Generate a complete proposal with a single Gemini call.
-    checklist: formatted requirements string from extractor.format_checklist().
+    checklist : formatted requirements string from extractor.format_checklist().
+    req_data  : extracted requirements dict from extractor — used to derive
+                the tender domain so team CVs show only relevant experience.
     Returns the complete proposal dict ready for build_pptx().
     """
+    # Derive tender domain from req_data for CV filtering
+    tender_domain = ''
+    if req_data:
+        parts = [
+            req_data.get('program_type', ''),
+            req_data.get('program_name', ''),
+        ]
+        tender_domain = ' '.join(p for p in parts if p).strip()
+
     rag = _get_rag(draft_text, api_key)
-    cv_library = _load_team_cvs()
+    cv_library = _load_team_cvs(tender_domain)
 
     checklist_section = ''
     if checklist:
-        checklist_section = f'\n\n=== قائمة المتطلبات المستخرجة — يجب تغطية كل بند ===\n{checklist[:800]}'
+        checklist_section = f'\n\n=== قائمة المتطلبات المستخرجة — يجب تغطية كل بند ===\n{checklist}'
 
     rag_section = ''
     if rag:
@@ -376,7 +412,19 @@ def generate_proposal(draft_text: str, api_key: str,
 
     cv_section = ''
     if cv_library:
-        cv_section = f'\n\n{cv_library[:4000]}\n\nتعليمات الفريق: اختر 2-4 أعضاء من المكتبة أعلاه. القاعدة الوحيدة: اقرأ ما تطلبه المناقصة بالضبط — إذا طلبت إناثاً اختر gender:female، إذا طلبت ذكوراً اختر gender:male، إذا طلبت أدواراً محددة اختر من يناسبها، إذا لم تحدد شيئاً اختر الأنسب تقنياً. د. غسان المعمري يكون دائماً الأول.'
+        domain_instruction = (
+            f'مجال هذه المناقصة هو: {tender_domain}. '
+            if tender_domain else ''
+        )
+        cv_section = (
+            f'\n\n{cv_library}'
+            f'\n\nتعليمات الفريق:'
+            f'\n• اختر 2-4 أعضاء من المكتبة أعلاه.'
+            f'\n• {domain_instruction}'
+            f'القاعدة الأولى: إذا طلبت المناقصة إناثاً اختر gender:female، إذا طلبت ذكوراً اختر gender:male، إذا طلبت أدواراً محددة اختر من يناسبها، إذا لم تحدد اختر الأنسب تقنياً.'
+            f'\n• القاعدة الثانية — "القبعة الصحيحة": عند كتابة حقلَي experience وqualifications لكل عضو، اذكر فقط الخبرات والشهادات والتخصصات المرتبطة مباشرة بمجال هذه المناقصة ({tender_domain or "موضوع المناقصة"}). لا تذكر شهادات أو تخصصات من مجالات أخرى لا علاقة لها بالمناقصة (مثلاً: لا تذكر شهادات تقنية في مناقصة قيادية، ولا شهادات سياحية في مناقصة مجتمعية).'
+            f'\n• د. غسان المعمري يكون دائماً الأول في القائمة.'
+        )
 
     user_prompt = f"""الوثائق المرفقة (اقرأ كل وثيقة بالكامل وافهم دورها):
 ---

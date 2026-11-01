@@ -723,7 +723,8 @@ def _generate_new(draft_text: str, user_context: str = ''):
             user_ctx_block = f'\n\n=== معلومات أضافها المستخدم (الفريق / الشركاء) ===\n{user_context}\n=== نهاية المعلومات ===\n'
         proposal_data = generate_proposal(
             draft_text + user_ctx_block, session['api_key'],
-            checklist=checklist_text or None
+            checklist=checklist_text or None,
+            req_data=req_data or None,
         )
         logger.info(f'Generated: {proposal_data.get("program_title")}')
 

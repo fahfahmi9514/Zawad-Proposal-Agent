@@ -146,7 +146,7 @@ def review_proposal(proposal_data: dict, draft_text: str,
 
 محتوى العرض المُنشأ (JSON):
 ---
-{proposal_str[:6000]}
+{proposal_str}
 ---
 
 {math}
@@ -173,7 +173,7 @@ def review_proposal(proposal_data: dict, draft_text: str,
 
 محتوى العرض (JSON):
 ---
-{proposal_str[:5000]}
+{proposal_str}
 ---
 
 {math}

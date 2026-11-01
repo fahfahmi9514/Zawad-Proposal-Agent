@@ -114,12 +114,23 @@ def extract_client_logo(pdf_path: str, save_dir: str = '') -> str:
 
     doc = pymupdf.open(pdf_path)
     best_natural  = None   # standalone logo image
+    best_natural_score = -1
     best_fullpage = None   # full-page cover image (fallback — will crop)
 
     seen_xrefs = set()
 
-    for page_idx in range(min(3, len(doc))):
+    for page_idx in range(min(5, len(doc))):
         page = doc[page_idx]
+        page_h = page.rect.height  # page height in points for position scoring
+
+        # Build a map xref → bounding rect on this page
+        xref_rects = {}
+        try:
+            for item in page.get_image_info(xrefs=True):
+                xref_rects[item.get('xref', 0)] = item.get('bbox', (0, 0, 0, 0))
+        except Exception:
+            pass
+
         for img_info in page.get_images(full=True):
             xref = img_info[0]
             if xref in seen_xrefs:
@@ -131,21 +142,26 @@ def extract_client_logo(pdf_path: str, save_dir: str = '') -> str:
                 continue
 
             w, h = img.get('width', 0), img.get('height', 0)
-            if w < 40 or h < 40:
+            if w < 30 or h < 30:
                 continue    # invisible dots or color fills
             aspect = w / h if h else 0
 
             is_fullpage = (h > 500 and 0.5 < aspect < 1.5)
-            is_banner   = (aspect > 3.5)  # wide strips — not logos
-            is_tiny     = (w < 80 or h < 60)
+            is_banner   = (aspect > 3.5)
+            is_tiny     = (w < 60 or h < 45)
 
             if is_fullpage:
                 if best_fullpage is None:
                     best_fullpage = img['image']
             elif not is_banner and not is_tiny:
-                # Proportions match a logo (roughly square or moderate width)
-                if best_natural is None:
+                # Score: prefer images in the top half of the page (logos live there)
+                bbox = xref_rects.get(xref, (0, 0, 0, 0))
+                img_top_y = bbox[1] if len(bbox) >= 2 else 0
+                in_top_half = (img_top_y < page_h * 0.5) if page_h else True
+                score = (1 if in_top_half else 0) - page_idx  # earlier pages preferred
+                if best_natural is None or score > best_natural_score:
                     best_natural = img['image']
+                    best_natural_score = score
 
     doc.close()
 

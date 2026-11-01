@@ -75,6 +75,14 @@ PAST_PROJECTS = [
     ("إعداد المدربين", "الصندوق الاجتماعي للتنمية", "5,810", "25", "داخل", "تدريب"),
 ]
 
+# Hardcoded Zawad company-level stats — never AI-generated, always accurate
+ZAWAD_STATS = [
+    ("94%",   "رضا المستفيدين"),
+    ("95%",   "أداء المدربين"),
+    ("+12",   "مشروعاً مكتملاً"),
+    ("+650K", "ريال قيمة العقود"),
+]
+
 
 # ═══════════════════════════════════════════════════════════════════
 # LOW-LEVEL HELPERS
@@ -1165,16 +1173,30 @@ def _slide_track_record(prs, data, client_logo):
     _divider(slide)
     _para(tf3, 'سجل إنجازاتنا الموثق', 15, color=MINT, align=PP_ALIGN.RIGHT)
 
+    # ── Hardcoded company stats bar ───────────────────────────────────
+    stat_y, stat_h = 2.85, 1.6
+    sw = (W - 1.0) / len(ZAWAD_STATS)
+    for i, (num, lbl) in enumerate(ZAWAD_STATS):
+        sx = 0.5 + i * sw
+        _rect(slide, sx, stat_y, sw - 0.2, stat_h, NAVY, rounded=True, radius=0.12)
+        tx = _txbox(slide, sx, stat_y, sw - 0.2, stat_h)
+        tf = tx.text_frame
+        tf.word_wrap = False
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        _tf_clear(tf)
+        _para(tf, num, 22, bold=True, color=MINT, align=PP_ALIGN.CENTER)
+        _para(tf, lbl, 9,  bold=False, color=WHITE, align=PP_ALIGN.CENTER)
+
     headers = ['المستفيدون', 'نطاق العمل', 'الجهة المستفيدة', 'اسم المشروع', 'م']
     col_ws_raw = [3.0, 6.5, 7.0, 11.5, 1.5]
     total_w = sum(col_ws_raw)
     scale = (W - 1.0) / total_w
     col_ws = [c * scale for c in col_ws_raw]
 
-    header_h = 1.2
-    row_h = 1.4
+    header_h = 1.1
+    row_h = 1.25
     table_x = 0.5
-    table_y = 3.1
+    table_y = 4.7
 
     cx = table_x
     for hdr, cw in zip(headers, col_ws):
