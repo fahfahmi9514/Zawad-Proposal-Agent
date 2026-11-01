@@ -1237,46 +1237,53 @@ def _slide_innovation(prs, data, client_logo):
     _rect(slide, 0, 0, W, H, LGRAY)
     tf3 = _header(slide, 'الابتكار والقيمة المضافة', '10', client_logo)
     _divider(slide)
-    _para(tf3, 'ما الذي يميزنا عن غيرنا', 15, color=MINT, align=PP_ALIGN.RIGHT)
+    _para(tf3, 'إضافات مرتبطة مباشرة بنطاق العمل – جميعها دون أي التزام مالي إضافي', 13, color=MINT, align=PP_ALIGN.RIGHT)
 
-    inno_text = data.get('sections', {}).get('innovation', '')
     points = data.get('sections', {}).get('innovation_points', [])
-
+    inno_text = data.get('sections', {}).get('innovation', '')
     if not points:
         pts = inno_text.split('\n') if inno_text else []
         points = [{'title': p.strip(), 'description': ''} for p in pts if p.strip()][:6]
 
-    default_icons = ['\U0001f310', '\U0001f4a1', '\U0001f3c6', '\U0001f91d', '\U0001f4ca', '⭐']
-
     cols = 3
-    rows = (len(points) + cols - 1) // cols
-    bw = (W - 1.2) / cols - 0.25
-    bh = (H - 4.0) / rows - 0.3
+    n = min(len(points), 6)
+    rows = (n + cols - 1) // cols
+    gap = 0.22
+    bw = (W - 0.9 - gap * (cols - 1)) / cols
+    bh = (H - 3.6 - gap * (rows - 1)) / rows
 
     for i, pt in enumerate(points[:6]):
         row = i // cols
-        col = cols - 1 - (i % cols)
-        bx = 0.5 + col * (bw + 0.25)
-        by = 3.2 + row * (bh + 0.3)
+        col = cols - 1 - (i % cols)          # RTL order
+        bx = 0.45 + col * (bw + gap)
+        by = 3.3 + row * (bh + gap)
 
-        _rect(slide, bx, by, bw, bh, WHITE, rounded=True, radius=0.12, border=MGRAY)
+        _rect(slide, bx, by, bw, bh, WHITE, rounded=True, radius=0.10, border=MGRAY)
 
-        icon = pt.get('icon', default_icons[i % len(default_icons)])
-        _icon_circle(slide, bx + bw / 2, by + 1.2, 0.7, icon, 20, TEAL)
+        # Numbered badge top-right corner of card
+        badge_sz = 0.48
+        _rect(slide, bx + bw - badge_sz - 0.12, by + 0.12, badge_sz, badge_sz,
+              TEAL, rounded=True, radius=0.08)
+        nb = _txbox(slide, bx + bw - badge_sz - 0.12, by + 0.12, badge_sz, badge_sz)
+        nb.text_frame.word_wrap = False
+        _tf_clear(nb.text_frame)
+        _para(nb.text_frame, f'{i+1:02d}', 11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
 
-        tx = _txbox(slide, bx + 0.3, by + 2.3, bw - 0.6, 1.2)
+        # Title
+        tx = _txbox(slide, bx + 0.2, by + 0.22, bw - badge_sz - 0.45, 0.55)
         tf = tx.text_frame
         tf.word_wrap = True
         _tf_clear(tf)
-        _para(tf, pt.get('title', ''), 14, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
+        _para(tf, pt.get('title', ''), 13, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
 
+        # Description
         desc = pt.get('description', '')
         if desc:
-            tx2 = _txbox(slide, bx + 0.3, by + 3.5, bw - 0.6, bh - 3.7)
+            tx2 = _txbox(slide, bx + 0.18, by + 0.85, bw - 0.36, bh - 1.0)
             tf2 = tx2.text_frame
             tf2.word_wrap = True
             _tf_clear(tf2)
-            _para(tf2, desc, 13, color=SLATE, align=PP_ALIGN.RIGHT)
+            _para(tf2, desc, 11, color=SLATE, align=PP_ALIGN.RIGHT)
 
 
 # ═══════════════════════════════════════════════════════════════════
